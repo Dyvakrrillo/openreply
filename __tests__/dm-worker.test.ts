@@ -34,6 +34,14 @@ const {
     },
     instagramAccount: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
+    },
+    emailCapture: {
+      findFirst: vi.fn(),
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
     },
     operationalEvent: {
       create: vi.fn(),
@@ -222,6 +230,12 @@ function createMockPostbackJob(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // No email gate in flight unless a test sets one up.
+  mockPrisma.instagramAccount.findFirst.mockResolvedValue(null);
+  mockPrisma.emailCapture.findFirst.mockResolvedValue(null);
+  mockPrisma.emailCapture.upsert.mockResolvedValue({ id: "capture_1", crmSyncedAt: null });
+  mockPrisma.emailCapture.update.mockResolvedValue({});
+  mockPrisma.emailCapture.updateMany.mockResolvedValue({ count: 1 });
   mockPrisma.postbackDelivery.create.mockReset().mockResolvedValue({});
   mockPrisma.postbackDelivery.delete.mockReset().mockResolvedValue({});
 
@@ -1763,4 +1777,139 @@ it("retains the public reply claim if sending succeeded but its log write failed
   await process({ ...createMockJob(), id: "next-poll" });
   expect(sendCommentReply).toHaveBeenCalledTimes(1);
   expect(mockSendPrivateReply).toHaveBeenCalledTimes(1);
+});
+
+describe("DM Worker — email gate", () => {
+  const emailAutomation = {
+    ...mockAutomation,
+    name: "Guide gratuit",
+    requireEmail: true,
+    emailPromptMessage: "C'est Billy ! Quelle est ton adresse e-mail ?",
+    emailInvalidMessage: "Oups, ce n'est pas une adresse e-mail.",
+    crmWebhookUrl: "https://crm.example.com/?fluentcrm=1&route=contact&hash=abc",
+    followUpEnabled: false,
+    followUpMessage: null,
+    instagramAccount: { ...mockAutomation.instagramAccount, username: "laprofbranchee" },
+  };
+
+  function messageJob(messageText: string) {
+    return {
+      name: "process-message",
+      data: {
+        instagramAccountId: "ig_456",
+        accountConnectionId: "ig_account_row_1",
+        messageId: "mid_email_1",
+        messageText,
+        senderId: "commenter_999",
+      },
+      id: "message_job_email",
+      attemptsMade: 0,
+    };
+  }
+
+  const awaiting = {
+    id: "capture_1",
+    automationId: "auto_789",
+    igUserId: "commenter_999",
+    igUsername: "commenter_user",
+    invalidAttempts: 0,
+    status: "AWAITING",
+  };
+
+  let fetchMock: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("asks for the email in the private reply instead of sending the link", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([emailAutomation]);
+
+    const processor = getProcessor();
+    await processor(createMockJob());
+
+    expect(mockSendPrivateReply).toHaveBeenCalledWith(
+      "decrypted_token",
+      "ig_456",
+      "comment_555",
+      "C'est Billy ! Quelle est ton adresse e-mail ?"
+    );
+    expect(mockPrisma.emailCapture.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ status: "AWAITING", igUserId: "commenter_999" }),
+      })
+    );
+  });
+
+  it("sends the link and pushes the contact to the CRM once a valid email is typed", async () => {
+    mockPrisma.instagramAccount.findFirst.mockResolvedValue({ id: "ig_account_row_1" });
+    mockPrisma.emailCapture.findFirst.mockResolvedValue(awaiting);
+    mockPrisma.automation.findFirst.mockResolvedValue(emailAutomation);
+    mockPrisma.emailCapture.findUnique.mockResolvedValue({
+      ...awaiting,
+      email: "jane@example.com",
+    });
+
+    const processor = getProcessor();
+    await processor(messageJob("voici : Jane@Example.com merci"));
+
+    expect(mockPrisma.emailCapture.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "capture_1", status: "AWAITING" },
+        data: expect.objectContaining({ status: "CAPTURED", email: "jane@example.com" }),
+      })
+    );
+    expect(mockSendDirectMessage).toHaveBeenCalledWith(
+      "decrypted_token",
+      "ig_456",
+      "commenter_999",
+      "Hey commenter_user! Here is the link: https://example.com"
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(emailAutomation.crmWebhookUrl);
+    const body = new URLSearchParams(init.body as string);
+    expect(body.get("email")).toBe("jane@example.com");
+    expect(body.get("source_account")).toBe("laprofbranchee");
+    // The email answer is not also treated as a keyword DM.
+    expect(mockPrisma.automation.findMany).not.toHaveBeenCalled();
+  });
+
+  it("asks again when the reply has no email address", async () => {
+    mockPrisma.instagramAccount.findFirst.mockResolvedValue({ id: "ig_account_row_1" });
+    mockPrisma.emailCapture.findFirst.mockResolvedValue(awaiting);
+    mockPrisma.automation.findFirst.mockResolvedValue(emailAutomation);
+
+    const processor = getProcessor();
+    await processor(messageJob("je ne sais pas"));
+
+    expect(mockSendDirectMessage).toHaveBeenCalledWith(
+      "decrypted_token",
+      "ig_456",
+      "commenter_999",
+      "Oups, ce n'est pas une adresse e-mail."
+    );
+    expect(mockPrisma.emailCapture.updateMany).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("stops asking after repeated replies without an email", async () => {
+    mockPrisma.instagramAccount.findFirst.mockResolvedValue({ id: "ig_account_row_1" });
+    mockPrisma.emailCapture.findFirst.mockResolvedValue({ ...awaiting, invalidAttempts: 2 });
+    mockPrisma.automation.findFirst.mockResolvedValue(emailAutomation);
+    mockPrisma.automation.findMany.mockResolvedValue([]);
+
+    const processor = getProcessor();
+    await processor(messageJob("toujours pas"));
+
+    expect(mockPrisma.emailCapture.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "ABANDONED" } })
+    );
+    expect(mockSendDirectMessage).not.toHaveBeenCalled();
+    // Falls through to normal keyword handling.
+    expect(mockPrisma.automation.findMany).toHaveBeenCalled();
+  });
 });

@@ -50,6 +50,10 @@ interface LoadedCampaign {
   followUpEnabled: boolean;
   followUpMessage: string | null;
   followUpDelayMinutes: number | null;
+  requireEmail?: boolean;
+  emailPromptMessage?: string | null;
+  emailInvalidMessage?: string | null;
+  crmWebhookUrl?: string | null;
   publicReplyEnabled: boolean;
   publicReplyMessage: string | null;
   publicReplyMessages: string[];
@@ -184,6 +188,10 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   const [followUpEnabled, setFollowUpEnabled] = useState(false);
   const [followUpMessage, setFollowUpMessage] = useState("");
   const [followUpDelayMinutes, setFollowUpDelayMinutes] = useState(0);
+  const [requireEmail, setRequireEmail] = useState(false);
+  const [emailPromptMessage, setEmailPromptMessage] = useState("");
+  const [emailInvalidMessage, setEmailInvalidMessage] = useState("");
+  const [crmWebhookUrl, setCrmWebhookUrl] = useState("");
 
   const [previewTab, setPreviewTab] = useState<PreviewTab>("dm");
 
@@ -293,6 +301,10 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         setFollowUpEnabled(c.followUpEnabled ?? false);
         setFollowUpMessage(c.followUpMessage ?? "");
         setFollowUpDelayMinutes(c.followUpDelayMinutes ?? 0);
+        setRequireEmail(c.requireEmail ?? false);
+        setEmailPromptMessage(c.emailPromptMessage ?? "");
+        setEmailInvalidMessage(c.emailInvalidMessage ?? "");
+        setCrmWebhookUrl(c.crmWebhookUrl ?? "");
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
@@ -399,6 +411,8 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
     if (!dmMessage.trim()) return setError(t("Add the DM with the link."));
     if (openingDmEnabled && (!openingDmMessage.trim() || !openingDmButtonLabel.trim()))
       return setError(t("Your opening DM needs a message and a button label."));
+    if (requireEmail && crmWebhookUrl.trim() && !/^https:\/\/\S+$/.test(crmWebhookUrl.trim()))
+      return setError(t("The CRM webhook URL must start with https://."));
 
     setSaving(true);
 
@@ -433,6 +447,10 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       followUpEnabled,
       followUpMessage: followUpEnabled ? followUpMessage.trim() : "",
       followUpDelayMinutes: followUpEnabled ? followUpDelayMinutes : 0,
+      requireEmail,
+      emailPromptMessage: requireEmail ? emailPromptMessage.trim() : "",
+      emailInvalidMessage: requireEmail ? emailInvalidMessage.trim() : "",
+      crmWebhookUrl: requireEmail ? crmWebhookUrl.trim() : "",
       isActive: activeValue,
     };
 
@@ -872,6 +890,47 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 />
                 <p className="text-xs text-muted">
                   {t("We send the link only after they tap the button and Instagram confirms the follow. If it can't be verified, we send it anyway.")}
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="mt-3 rounded-lg border border-border p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-foreground">
+                {t("an email address first")}
+              </span>
+              <Toggle
+                on={requireEmail}
+                onToggle={() => setRequireEmail(!requireEmail)}
+              />
+            </div>
+            {requireEmail && (
+              <div className="mt-3 space-y-2">
+                <textarea
+                  value={emailPromptMessage}
+                  onChange={(e) => setEmailPromptMessage(e.target.value)}
+                  placeholder={t("Before I send it over, what's your email address? Just type it here 👇")}
+                  rows={3}
+                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
+                  maxLength={1000}
+                />
+                <textarea
+                  value={emailInvalidMessage}
+                  onChange={(e) => setEmailInvalidMessage(e.target.value)}
+                  placeholder={t("Hmm, that doesn't look like an email address. Could you type it again? (e.g. name@example.com)")}
+                  rows={2}
+                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
+                  maxLength={1000}
+                />
+                <input
+                  value={crmWebhookUrl}
+                  onChange={(e) => setCrmWebhookUrl(e.target.value)}
+                  placeholder={t("CRM webhook URL (e.g. FluentCRM incoming webhook)")}
+                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
+                  maxLength={2000}
+                />
+                <p className="text-xs text-muted">
+                  {t("We ask for their email in the DM and send the link once they type it. Someone who already gave this account their email gets the link right away. Each address is posted to the CRM webhook, which picks the list and tags. Needs the messages webhook field.")}
                 </p>
               </div>
             )}

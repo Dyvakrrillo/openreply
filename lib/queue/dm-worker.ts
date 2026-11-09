@@ -55,6 +55,38 @@ import { TRACKED_LINK_ORDER } from "@/lib/tracking/link-order";
 import { hashRecipientId } from "@/lib/tracking/server";
 
 import { ZernioApiError } from "@/lib/zernio/client";
+import {
+  DEFAULT_EMAIL_INVALID,
+  DEFAULT_EMAIL_PROMPT,
+  MAX_INVALID_EMAIL_REPLIES,
+  extractEmail,
+} from "@/lib/email-capture";
+import {
+  findAwaitingCapture,
+  findCapturedEmail,
+  markEmailAwaiting,
+  recordKnownEmail,
+  syncCaptureToCrm,
+} from "./email-gate";
+
+function emailPromptText(
+  automation: { emailPromptMessage: string | null },
+  commenterName: string | null | undefined,
+): string {
+  return renderMessageWithoutLink({
+    message: automation.emailPromptMessage?.trim() || DEFAULT_EMAIL_PROMPT,
+    commenterName,
+  });
+}
+
+// Never let CRM or capture bookkeeping fail a send that already went out.
+async function emailGateBestEffort(label: string, task: () => Promise<void>): Promise<void> {
+  try {
+    await task();
+  } catch (error) {
+    console.error(`[DM Worker] Email gate ${label} failed:`, formatError(error));
+  }
+}
 
 const BACKOFF_DELAYS = [5 * 60 * 1000, 15 * 60 * 1000, 45 * 60 * 1000];
 
@@ -649,6 +681,19 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           : alreadyFollows !== true;
     }
 
+    // Email gate on the comment itself (no opening DM, no follow prompt in the
+    // way): the one private reply asks for the address instead of carrying the
+    // link. Someone who already gave this account their email gets the link.
+    let sendEmailPrompt = false;
+    let knownEmail: string | null = null;
+    if (automation.requireEmail && !useOpeningDm && !sendFollowPrompt) {
+      knownEmail = await findCapturedEmail(automation.instagramAccountId, commenterId);
+      sendEmailPrompt = !knownEmail;
+      if (sendEmailPrompt) {
+        await markEmailAwaiting(automation, commenterId, commenterName ?? null);
+      }
+    }
+
     let claimed;
     try {
       claimed = await claimCommentDelivery(automation.id, commentId, "dm");
@@ -695,6 +740,14 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           text: promptText,
           buttonTitle: automation.followPromptButtonLabel || "i'm following",
           payload: `followcheck:${automation.id}`,
+          postId: mediaId,
+        });
+      } else if (sendEmailPrompt) {
+        await sendPrivateReply({
+          context: accessToken,
+          instagramAccountId: automation.instagramAccount.instagramId,
+          commentId: commentId,
+          message: emailPromptText(automation, commenterName),
           postId: mediaId,
         });
       } else if (automation.trackedLinks.length > 0) {
@@ -779,6 +832,12 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           errorMessage: null,
         },
       });
+      if (knownEmail) {
+        const email = knownEmail;
+        await emailGateBestEffort("known email", () =>
+          recordKnownEmail(automation, commenterId, commenterName ?? null, email)
+        );
+      }
     } catch (error) {
       const sendError = classifySendError(error);
       // Retain reservations if the provider may have delivered the message.
@@ -1081,6 +1140,35 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
     }
   }
 
+  // Email gate: past the opening DM and the follow check, ask for the address
+  // and stop. The link goes out once they type it (see handleEmailReply). The
+  // read fallback never reveals a gated link: nobody has given an address.
+  if (automation.requireEmail) {
+    if (fallback) return;
+    const knownEmail = await findCapturedEmail(automation.instagramAccountId, userId);
+    if (!knownEmail) {
+      await markEmailAwaiting(automation, userId, commenterName);
+      try {
+        await sendPostbackOnce({
+          operationId,
+          send: () =>
+            sendDirectMessage({
+              context: accessToken,
+              instagramAccountId: automation.instagramAccount.instagramId,
+              userId,
+              message: emailPromptText(automation, commenterName),
+            }),
+        });
+      } catch (error) {
+        console.log("[DM Worker] Failed to send email prompt:", formatError(error));
+      }
+      return;
+    }
+    await emailGateBestEffort("known email", () =>
+      recordKnownEmail(automation, userId, commenterName, knownEmail)
+    );
+  }
+
   const usage = await reserveWorkspaceDMSend(automation.workspaceId);
   if (!usage.allowed) {
     await prisma.dmLog.upsert({
@@ -1277,8 +1365,182 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
  * comments) and delivers the reveal directly, honouring the follow gate.
  * Dedup is per inbound message id, so each message triggers at most one reply.
  */
+/**
+ * A DM from someone we asked for an email address. Returns true when the
+ * message was an answer to that question (handled here, so keyword campaigns
+ * do not also fire on it), false to fall through to normal DM handling.
+ */
+async function handleEmailReply(job: Job<ProcessMessageJob>): Promise<boolean> {
+  const { instagramAccountId, messageText, senderId } = job.data;
+
+  const account = await prisma.instagramAccount.findFirst({
+    where: {
+      instagramId: instagramAccountId,
+      ...(job.data.accountConnectionId ? { id: job.data.accountConnectionId } : {}),
+    },
+    select: { id: true },
+  });
+  if (!account) return false;
+
+  const capture = await findAwaitingCapture(account.id, senderId);
+  if (!capture) return false;
+
+  const automation = await prisma.automation.findFirst({
+    where: { id: capture.automationId, isActive: true, requireEmail: true },
+    include: {
+      instagramAccount: true,
+      trackedLinks: {
+        select: { slug: true, label: true, destinationUrl: true },
+        orderBy: TRACKED_LINK_ORDER,
+      },
+    },
+  });
+  if (!automation || !hasInstagramCredentials(automation.instagramAccount)) return false;
+
+  let accessToken: InstagramContext;
+  try {
+    accessToken = await createInstagramContext(
+      automation.instagramAccount,
+      `${job.id}:${automation.id}:email`
+    );
+  } catch {
+    return false;
+  }
+
+  const email = extractEmail(messageText);
+  if (!email) {
+    if (capture.invalidAttempts >= MAX_INVALID_EMAIL_REPLIES) {
+      await prisma.emailCapture.update({
+        where: { id: capture.id },
+        data: { status: "ABANDONED" },
+      });
+      return false;
+    }
+    await prisma.emailCapture.update({
+      where: { id: capture.id },
+      data: { invalidAttempts: { increment: 1 } },
+    });
+    try {
+      await sendDirectMessage({
+        context: accessToken,
+        instagramAccountId: automation.instagramAccount.instagramId,
+        userId: senderId,
+        message: renderMessageWithoutLink({
+          message: automation.emailInvalidMessage?.trim() || DEFAULT_EMAIL_INVALID,
+          commenterName: capture.igUsername,
+        }),
+      });
+    } catch (error) {
+      console.log("[DM Worker] Failed to send invalid-email reply:", formatError(error));
+    }
+    return true;
+  }
+
+  // Claim the capture so a redelivered webhook cannot send the link twice.
+  const claimed = await prisma.emailCapture.updateMany({
+    where: { id: capture.id, status: "AWAITING" },
+    data: { status: "CAPTURED", email, capturedAt: new Date() },
+  });
+  if (claimed.count === 0) return true;
+
+  const commenterName =
+    capture.igUsername ??
+    (await resolveRecipientName({
+      context: accessToken,
+      workspaceId: automation.workspaceId,
+      recipientId: senderId,
+    }));
+  const dedupeId = `email:${senderId}`;
+  const logBase = {
+    workspaceId: automation.workspaceId,
+    automationId: automation.id,
+    instagramAccountId: automation.instagramAccountId,
+    commenterId: senderId,
+    commenterName,
+    commentText: "(email given)",
+    commentId: dedupeId,
+  };
+
+  const usage = await reserveWorkspaceDMSend(automation.workspaceId);
+  if (!usage.allowed) {
+    await prisma.dmLog.upsert({
+      where: { automationId_commentId: { automationId: automation.id, commentId: dedupeId } },
+      create: { ...logBase, status: "SKIPPED_PLAN_LIMIT", errorMessage: `Monthly DM limit reached (${usage.limit})` },
+      update: { status: "SKIPPED_PLAN_LIMIT" },
+    });
+    await emailGateBestEffort("CRM sync", () => syncCaptureToCrm(capture.id, automation));
+    return true;
+  }
+
+  try {
+    await sendRevealDirectMessage({
+      accessToken,
+      automation,
+      userId: senderId,
+      commenterName,
+      context: "email reply",
+    });
+  } catch (originalError) {
+    const error = classifySendError(originalError);
+    if (isConfirmedSendRejection(error)) {
+      await releaseWorkspaceDMReservation(automation.workspaceId, usage.periodStart);
+    }
+    // Unless the link may already be in their inbox, put the capture back so
+    // the job's retry handles this same message again.
+    if (!isDeliveryUnconfirmed(error)) {
+      await prisma.emailCapture.update({
+        where: { id: capture.id },
+        data: { status: "AWAITING" },
+      });
+    }
+    await prisma.dmLog.upsert({
+      where: { automationId_commentId: { automationId: automation.id, commentId: dedupeId } },
+      create: {
+        ...logBase,
+        status: "FAILED",
+        errorMessage: formatError(error),
+        dmDeliveryUnconfirmed: isDeliveryUnconfirmed(error),
+      },
+      update: {
+        status: "FAILED",
+        errorMessage: formatError(error),
+        dmDeliveryUnconfirmed: isDeliveryUnconfirmed(error),
+      },
+    });
+    throw error;
+  }
+
+  await prisma.dmLog.upsert({
+    where: { automationId_commentId: { automationId: automation.id, commentId: dedupeId } },
+    create: { ...logBase, status: "SENT", dmSentAt: new Date() },
+    update: { status: "SENT", dmSentAt: new Date(), errorMessage: null },
+  });
+
+  if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
+    await getDMQueue().add(
+      FOLLOWUP_JOB_NAME,
+      {
+        instagramAccountId: automation.instagramAccount.instagramId,
+        accountConnectionId: automation.instagramAccountId,
+        userId: senderId,
+        automationId: automation.id,
+        commenterName,
+      },
+      {
+        delay: Math.max(0, automation.followUpDelayMinutes ?? 0) * 60_000,
+        jobId: `followup_${automation.id}_${senderId}`,
+      }
+    );
+  }
+
+  await emailGateBestEffort("CRM sync", () => syncCaptureToCrm(capture.id, automation));
+  return true;
+}
+
 async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
   const { instagramAccountId, messageId, messageText, senderId } = job.data;
+
+  if (await handleEmailReply(job)) return;
 
   const automations = await prisma.automation.findMany({
     where: {
@@ -1453,6 +1715,17 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
           buttonTitle: automation.followPromptButtonLabel || "I'm following ✅",
           payload: `followcheck:${automation.id}`,
         });
+      } else if (
+        automation.requireEmail &&
+        !(await findCapturedEmail(automation.instagramAccountId, senderId))
+      ) {
+        await markEmailAwaiting(automation, senderId, commenterName);
+        await sendDirectMessage({
+          context: accessToken,
+          instagramAccountId: automation.instagramAccount.instagramId,
+          userId: senderId,
+          message: emailPromptText(automation, commenterName),
+        });
       } else {
         await sendRevealDirectMessage({
           accessToken: accessToken,
@@ -1461,6 +1734,12 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
           commenterName: commenterName,
           context: "message trigger",
         });
+        if (automation.requireEmail) {
+          await emailGateBestEffort("known email", async () => {
+            const known = await findCapturedEmail(automation.instagramAccountId, senderId);
+            if (known) await recordKnownEmail(automation, senderId, commenterName, known);
+          });
+        }
 
         // The link has been delivered, so the appreciation follow-up applies
         // here exactly as it does after a button tap. Not scheduled behind the

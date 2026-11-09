@@ -49,6 +49,20 @@ const createAutomationSchema = z
     // Minutes to wait before the follow-up. Capped at 24h so it stays inside
     // Instagram's messaging window.
     followUpDelayMinutes: z.number().int().min(0).max(1440).optional().default(0),
+    requireEmail: z.boolean().optional().default(false),
+    emailPromptMessage: z.string().max(1000).optional().nullable(),
+    emailInvalidMessage: z.string().max(1000).optional().nullable(),
+    crmWebhookUrl: z
+      .union([
+        z
+          .string()
+          .url()
+          .max(2000)
+          .refine((v) => v.startsWith("https://"), "CRM webhook must use https"),
+        z.literal(""),
+      ])
+      .optional()
+      .nullable(),
     publicReplyEnabled: z.boolean().optional().default(false),
     publicReplyMessage: z.string().max(1000).optional().nullable(),
     publicReplyMessages: z
@@ -111,6 +125,20 @@ const updateAutomationSchema = z.object({
   followUpEnabled: z.boolean().optional(),
   followUpMessage: z.string().max(1000).optional().nullable(),
   followUpDelayMinutes: z.number().int().min(0).max(1440).optional(),
+  requireEmail: z.boolean().optional(),
+  emailPromptMessage: z.string().max(1000).optional().nullable(),
+  emailInvalidMessage: z.string().max(1000).optional().nullable(),
+  crmWebhookUrl: z
+    .union([
+      z
+        .string()
+        .url()
+        .max(2000)
+        .refine((v) => v.startsWith("https://"), "CRM webhook must use https"),
+      z.literal(""),
+    ])
+    .optional()
+    .nullable(),
   publicReplyEnabled: z.boolean().optional(),
   publicReplyMessage: z.string().max(1000).optional().nullable(),
   publicReplyMessages: z.array(z.string().max(1000)).max(10).optional(),
@@ -407,6 +435,16 @@ export async function POST(request: NextRequest) {
       followUpDelayMinutes: parsed.data.followUpEnabled
         ? parsed.data.followUpDelayMinutes
         : 0,
+      requireEmail: parsed.data.requireEmail,
+      emailPromptMessage: parsed.data.requireEmail
+        ? parsed.data.emailPromptMessage?.trim() || null
+        : null,
+      emailInvalidMessage: parsed.data.requireEmail
+        ? parsed.data.emailInvalidMessage?.trim() || null
+        : null,
+      crmWebhookUrl: parsed.data.requireEmail
+        ? parsed.data.crmWebhookUrl?.trim() || null
+        : null,
       publicReplyEnabled: parsed.data.publicReplyEnabled,
       publicReplyMessages: parsed.data.publicReplyEnabled
         ? publicReplyList
@@ -523,6 +561,14 @@ export async function PATCH(request: NextRequest) {
   if (automationData.followUpEnabled === false) {
     automationData.followUpMessage = null;
     automationData.followUpDelayMinutes = 0;
+  }
+  if (automationData.crmWebhookUrl !== undefined) {
+    automationData.crmWebhookUrl = automationData.crmWebhookUrl?.trim() || null;
+  }
+  if (automationData.requireEmail === false) {
+    automationData.emailPromptMessage = null;
+    automationData.emailInvalidMessage = null;
+    automationData.crmWebhookUrl = null;
   }
   // Any-post / next-reel campaigns carry no specific post.
   if (automationData.matchAnyPost === true || automationData.pendingNextReel === true) {

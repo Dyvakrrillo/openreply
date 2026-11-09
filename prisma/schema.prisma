@@ -86,6 +86,7 @@ model Workspace {
   webhookEvents     WebhookEvent[]
   operationalEvents OperationalEvent[]
   serviceKeys       ServiceKey[]
+  emailCaptures     EmailCapture[]
 
   @@index([ownerId])
 }
@@ -160,6 +161,7 @@ model InstagramAccount {
   dmLogs      DmLog[]
   linkClicks  LinkClick[]
   followerSnapshots FollowerSnapshot[]
+  emailCaptures EmailCapture[]
 
   @@index([workspaceId])
 }
@@ -214,6 +216,13 @@ model Automation {
   // Minutes to wait after the link is delivered before sending the follow-up.
   // 0 sends it right away.
   followUpDelayMinutes Int @default(0)
+  // Email gate: ask for an email address in the DM before revealing the link.
+  // The person answers by typing it; the captured address is then pushed to
+  // the CRM webhook (e.g. a FluentCRM incoming webhook) and the link is sent.
+  requireEmail        Boolean @default(false)
+  emailPromptMessage  String?
+  emailInvalidMessage String?
+  crmWebhookUrl       String?
   publicReplyEnabled Boolean @default(false)
   publicReplyMessage String?
   publicReplyMessages String[] @default([])
@@ -230,6 +239,7 @@ model Automation {
   dmLogs           DmLog[]
   trackedLinks     TrackedLink[]
   linkClicks       LinkClick[]
+  emailCaptures    EmailCapture[]
 
   @@index([workspaceId])
   @@index([instagramAccountId])
@@ -382,6 +392,39 @@ enum WorkspaceInvitationStatus {
   ACCEPTED
   REVOKED
   EXPIRED
+}
+
+// One person's email-gate progress for one campaign. AWAITING means we asked
+// and are waiting for them to type an address; CAPTURED holds the address.
+model EmailCapture {
+  id                 String   @id @default(cuid())
+  workspaceId        String
+  automationId       String
+  instagramAccountId String
+  igUserId           String
+  igUsername         String?
+  email              String?
+  status             EmailCaptureStatus @default(AWAITING)
+  invalidAttempts    Int      @default(0)
+  capturedAt         DateTime?
+  crmSyncedAt        DateTime?
+  crmError           String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automation       Automation       @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([automationId, igUserId])
+  @@index([instagramAccountId, igUserId, status])
+  @@index([workspaceId])
+}
+
+enum EmailCaptureStatus {
+  AWAITING
+  CAPTURED
+  ABANDONED
 }
 
 enum DmStatus {

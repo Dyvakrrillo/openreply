@@ -468,5 +468,11 @@
   "{name} Campaign Report": "{name} 活動報表",
   "{type} post": "{type} 貼文",
   "”": "」",
-  "← Campaigns": "← 返回活動列表"
+  "← Campaigns": "← 返回活動列表",
+  "an email address first": "先索取電子郵件",
+  "Before I send it over, what's your email address? Just type it here 👇": "傳送之前，可以告訴我你的電子郵件嗎？直接在這裡輸入 👇",
+  "Hmm, that doesn't look like an email address. Could you type it again? (e.g. name@example.com)": "嗯，這看起來不像電子郵件地址。可以再輸入一次嗎？（例如 name@example.com）",
+  "CRM webhook URL (e.g. FluentCRM incoming webhook)": "CRM Webhook 網址（例如 FluentCRM 傳入 Webhook）",
+  "We ask for their email in the DM and send the link once they type it. Someone who already gave this account their email gets the link right away. Each address is posted to the CRM webhook, which picks the list and tags. Needs the messages webhook field.": "我們會在私訊中索取電子郵件，對方輸入後才傳送連結。已向此帳號提供過電子郵件的人會直接收到連結。每個地址都會傳送到 CRM Webhook，由它決定名單和標籤。需要訂閱 messages Webhook 欄位。",
+  "The CRM webhook URL must start with https://.": "CRM Webhook 網址必須以 https:// 開頭。"
 }
