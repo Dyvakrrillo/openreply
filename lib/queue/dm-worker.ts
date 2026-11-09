@@ -89,6 +89,7 @@ async function emailGateBestEffort(label: string, task: () => Promise<void>): Pr
 }
 
 const BACKOFF_DELAYS = [5 * 60 * 1000, 15 * 60 * 1000, 45 * 60 * 1000];
+const BUTTON_TEMPLATE_TEXT_LIMIT = 640;
 
 // How long to wait before re-checking a follow that came back false: one
 // delay per re-check, each counted from the previous check.
@@ -268,12 +269,26 @@ async function sendRevealDirectMessage({
     recipientToken
   );
 
+  // A button template caps its text at 640 characters. A longer message goes
+  // out as plain text first, then the buttons follow under a short line, so
+  // nothing is cut off. The conversation is open here, so two DMs are allowed.
+  let buttonText = bodyText;
+  if (bodyText.length > BUTTON_TEMPLATE_TEXT_LIMIT) {
+    await sendDirectMessage({
+      context: accessToken,
+      instagramAccountId: automation.instagramAccount.instagramId,
+      userId: userId,
+      message: bodyText,
+    });
+    buttonText = "👇";
+  }
+
   try {
     await sendDirectMessageWithLinkButton({
       context: accessToken,
       instagramAccountId: automation.instagramAccount.instagramId,
       userId: userId,
-      text: bodyText,
+      text: buttonText,
       buttons: buttons,
     });
   } catch (buttonError) {
