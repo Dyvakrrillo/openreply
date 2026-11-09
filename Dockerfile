@@ -53,7 +53,6 @@ COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY --from=build /app/package.json ./package.json
 
 EXPOSE 3000
-# Default to the web process — the worker service overrides this with
-# `command: ["npm", "run", "worker"]` in whatever compose/stack file deploys
-# it (see openreply-vps.stack.yml in EvolutionAPI/omni-nexus for an example).
-CMD ["npm", "run", "start"]
+# Default to the web process. Set OPENREPLY_ROLE=worker on the worker service
+# (see scripts/start.sh), or override the command in a compose/stack file.
+CMD ["sh", "scripts/start.sh"]
