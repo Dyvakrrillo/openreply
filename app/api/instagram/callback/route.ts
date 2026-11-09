@@ -7,6 +7,7 @@ import { canConnectInstagramAccount } from "@/lib/instagram-accounts";
 import {
   getAssignedInstagramAccounts,
   getLongLivedToken,
+  getPageWithInstagram,
   getPagesWithInstagram,
   inspectUnifiedToken,
   subscribePageToWebhooks,
@@ -200,14 +201,35 @@ async function connectUnifiedLogin({
     }
   }
 
-  let grant: { scopes: string[]; instagramIds: string[] } = { scopes: [], instagramIds: [] };
+  let grant: { scopes: string[]; instagramIds: string[]; pageIds: string[] } = {
+    scopes: [],
+    instagramIds: [],
+    pageIds: [],
+  };
+  try {
+    grant = await inspectUnifiedToken(longLived);
+  } catch (inspectError) {
+    console.warn("[Instagram Callback] Token inspection failed:", inspectError);
+  }
+
+  // Business-owned Pages are missing from /me/accounts: reach the granted
+  // Pages by id instead.
+  const pageErrors: string[] = [];
+  if (candidates.length === 0) {
+    for (const pageId of grant.pageIds) {
+      try {
+        const page = await getPageWithInstagram(longLived, pageId);
+        if (page) {
+          candidates.push({ instagramId: page.instagramId, token: page.pageToken, pageId: page.pageId });
+        }
+      } catch (pageError) {
+        pageErrors.push(`${pageId}: ${pageError instanceof Error ? pageError.message : String(pageError)}`);
+      }
+    }
+  }
+
   if (candidates.length === 0) {
     const assigned = await getAssignedInstagramAccounts(token).catch(() => []);
-    try {
-      grant = await inspectUnifiedToken(token);
-    } catch (inspectError) {
-      console.warn("[Instagram Callback] Token inspection failed:", inspectError);
-    }
     const ids = new Set([...assigned.map((a) => a.id), ...grant.instagramIds]);
     // A user token (no Page granted) must be the long-lived one: the token
     // from the code exchange can expire within hours.
@@ -224,6 +246,9 @@ async function connectUnifiedLogin({
         payload: {
           pages: pages.map((p) => ({ pageId: p.pageId, instagramId: p.instagramId })),
           pagesError,
+          grantedPageIds: grant.pageIds,
+          pageErrors,
+          viaPage: candidates.some((c) => Boolean(c.pageId)),
           rawPages: rawPages as Prisma.InputJsonValue,
           longLivedExchanged: longLived !== token,
           scopes: grant.scopes,

@@ -986,7 +986,7 @@ export async function subscribeInstagramAccountToWebhooks(
  */
 export async function inspectUnifiedToken(
   accessToken: string
-): Promise<{ scopes: string[]; instagramIds: string[] }> {
+): Promise<{ scopes: string[]; instagramIds: string[]; pageIds: string[] }> {
   const appToken = `${requireEnv("META_APP_ID")}|${requireEnv("FACEBOOK_APP_SECRET")}`;
   const data = (await debugToken(accessToken, appToken)) as {
     data?: {
@@ -996,12 +996,16 @@ export async function inspectUnifiedToken(
   };
   const scopes = data.data?.scopes ?? [];
   const ids = new Set<string>();
+  const pageIds = new Set<string>();
   for (const grant of data.data?.granular_scopes ?? []) {
     if (grant.scope.startsWith("instagram_")) {
       for (const id of grant.target_ids ?? []) ids.add(id);
     }
+    if (grant.scope.startsWith("pages_")) {
+      for (const id of grant.target_ids ?? []) pageIds.add(id);
+    }
   }
-  return { scopes, instagramIds: [...ids] };
+  return { scopes, instagramIds: [...ids], pageIds: [...pageIds] };
 }
 
 /**
@@ -1030,6 +1034,31 @@ export async function getPagesWithInstagram(accessToken: string): Promise<
       instagramId: page.instagram_business_account!.id,
       username: page.instagram_business_account!.username,
     }));
+}
+
+/**
+ * A Page reached by id: business-owned Pages granted through Facebook Login
+ * for Business do not appear in /me/accounts, but the user token can still
+ * read the Page's own token and its linked Instagram account directly.
+ */
+export async function getPageWithInstagram(
+  accessToken: string,
+  pageId: string
+): Promise<{ pageId: string; pageToken: string; instagramId: string } | null> {
+  const url = new URL(`${facebookGraphBase()}/${pageId}`);
+  url.searchParams.set("fields", "id,access_token,instagram_business_account{id}");
+  url.searchParams.set("access_token", accessToken);
+  const page = await handleResponse<{
+    id: string;
+    access_token?: string;
+    instagram_business_account?: { id: string };
+  }>(await fetch(url.toString()));
+  if (!page.access_token || !page.instagram_business_account?.id) return null;
+  return {
+    pageId: page.id,
+    pageToken: page.access_token,
+    instagramId: page.instagram_business_account.id,
+  };
 }
 
 /** Turn on webhook delivery for a Page (and its linked Instagram account). */
