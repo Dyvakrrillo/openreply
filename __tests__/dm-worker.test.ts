@@ -36,6 +36,9 @@ const {
       findUnique: vi.fn(),
       findFirst: vi.fn(),
     },
+    knownContact: {
+      findFirst: vi.fn(),
+    },
     emailCapture: {
       findFirst: vi.fn(),
       findUnique: vi.fn(),
@@ -233,6 +236,7 @@ beforeEach(() => {
   // No email gate in flight unless a test sets one up.
   mockPrisma.instagramAccount.findFirst.mockResolvedValue(null);
   mockPrisma.emailCapture.findFirst.mockResolvedValue(null);
+  mockPrisma.knownContact.findFirst.mockResolvedValue(null);
   mockPrisma.emailCapture.upsert.mockResolvedValue({ id: "capture_1", crmSyncedAt: null });
   mockPrisma.emailCapture.update.mockResolvedValue({});
   mockPrisma.emailCapture.updateMany.mockResolvedValue({ count: 1 });

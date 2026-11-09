@@ -669,8 +669,25 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     // (opening DM → follow gate → link). Without an opening DM, we check follow
     // status at comment time: confirmed followers get the link now, everyone
     // else gets the "follow me first" prompt (re-verified on tap).
+    // Email gate first (the address is what matters most), then the follow
+    // gate: the one private reply asks for the address when we do not have it
+    // yet. Someone who already gave this account their email skips it.
+    let sendEmailPrompt = false;
+    let knownEmail: string | null = null;
+    if (automation.requireEmail && !useOpeningDm) {
+      knownEmail = await findCapturedEmail(
+        automation.instagramAccountId,
+        commenterId,
+        commenterName ?? null
+      );
+      sendEmailPrompt = !knownEmail;
+      if (sendEmailPrompt) {
+        await markEmailAwaiting(automation, commenterId, commenterName ?? null);
+      }
+    }
+
     let sendFollowPrompt = false;
-    if (automation.requireFollow && !useOpeningDm) {
+    if (automation.requireFollow && !useOpeningDm && !sendEmailPrompt) {
       const alreadyFollows = await getUserFollowStatus({
         context: accessToken,
         recipientId: commenterId,
@@ -679,19 +696,6 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         accessToken.provider === "ZERNIO"
           ? alreadyFollows === false
           : alreadyFollows !== true;
-    }
-
-    // Email gate on the comment itself (no opening DM, no follow prompt in the
-    // way): the one private reply asks for the address instead of carrying the
-    // link. Someone who already gave this account their email gets the link.
-    let sendEmailPrompt = false;
-    let knownEmail: string | null = null;
-    if (automation.requireEmail && !useOpeningDm && !sendFollowPrompt) {
-      knownEmail = await findCapturedEmail(automation.instagramAccountId, commenterId);
-      sendEmailPrompt = !knownEmail;
-      if (sendEmailPrompt) {
-        await markEmailAwaiting(automation, commenterId, commenterName ?? null);
-      }
     }
 
     let claimed;
@@ -726,6 +730,14 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           payload: `${automation.requireFollow ? "followcheck" : "reveal"}:${automation.id}:open`,
           postId: mediaId,
         });
+      } else if (sendEmailPrompt) {
+        await sendPrivateReply({
+          context: accessToken,
+          instagramAccountId: automation.instagramAccount.instagramId,
+          commentId: commentId,
+          message: emailPromptText(automation, commenterName),
+          postId: mediaId,
+        });
       } else if (sendFollowPrompt) {
         const promptText = renderMessageWithoutLink({
           message:
@@ -740,14 +752,6 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           text: promptText,
           buttonTitle: automation.followPromptButtonLabel || "i'm following",
           payload: `followcheck:${automation.id}`,
-          postId: mediaId,
-        });
-      } else if (sendEmailPrompt) {
-        await sendPrivateReply({
-          context: accessToken,
-          instagramAccountId: automation.instagramAccount.instagramId,
-          commentId: commentId,
-          message: emailPromptText(automation, commenterName),
           postId: mediaId,
         });
       } else if (automation.trackedLinks.length > 0) {
@@ -1029,6 +1033,35 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   // be bypassable by just reading the DM and waiting. On a tap, following or
   // unverifiable (null) falls through and delivers the link — fail-open so a
   // real follower is never trapped.
+  // Email gate, before the follow gate: ask for the address and stop. Once they
+  // type it, handleEmailReply moves on to the follow check, then the link. The
+  // read fallback never reveals a gated link: nobody has given an address.
+  if (automation.requireEmail) {
+    if (fallback) return;
+    const knownEmail = await findCapturedEmail(automation.instagramAccountId, userId, commenterName);
+    if (!knownEmail) {
+      await markEmailAwaiting(automation, userId, commenterName);
+      try {
+        await sendPostbackOnce({
+          operationId,
+          send: () =>
+            sendDirectMessage({
+              context: accessToken,
+              instagramAccountId: automation.instagramAccount.instagramId,
+              userId,
+              message: emailPromptText(automation, commenterName),
+            }),
+        });
+      } catch (error) {
+        console.log("[DM Worker] Failed to send email prompt:", formatError(error));
+      }
+      return;
+    }
+    await emailGateBestEffort("known email", () =>
+      recordKnownEmail(automation, userId, commenterName, knownEmail)
+    );
+  }
+
   if ((isFollowCheck || fallback) && automation.requireFollow) {
     const follows = await getUserFollowStatus({
       context: accessToken,
@@ -1138,35 +1171,6 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       }
       return;
     }
-  }
-
-  // Email gate: past the opening DM and the follow check, ask for the address
-  // and stop. The link goes out once they type it (see handleEmailReply). The
-  // read fallback never reveals a gated link: nobody has given an address.
-  if (automation.requireEmail) {
-    if (fallback) return;
-    const knownEmail = await findCapturedEmail(automation.instagramAccountId, userId);
-    if (!knownEmail) {
-      await markEmailAwaiting(automation, userId, commenterName);
-      try {
-        await sendPostbackOnce({
-          operationId,
-          send: () =>
-            sendDirectMessage({
-              context: accessToken,
-              instagramAccountId: automation.instagramAccount.instagramId,
-              userId,
-              message: emailPromptText(automation, commenterName),
-            }),
-        });
-      } catch (error) {
-        console.log("[DM Worker] Failed to send email prompt:", formatError(error));
-      }
-      return;
-    }
-    await emailGateBestEffort("known email", () =>
-      recordKnownEmail(automation, userId, commenterName, knownEmail)
-    );
   }
 
   const usage = await reserveWorkspaceDMSend(automation.workspaceId);
@@ -1461,6 +1465,36 @@ async function handleEmailReply(job: Job<ProcessMessageJob>): Promise<boolean> {
     commentId: dedupeId,
   };
 
+  // Email first, follow second: with a follow gate, a person who does not
+  // follow yet now gets the follow prompt; its button re-enters
+  // processPostback, which finds the address and checks the follow again.
+  if (automation.requireFollow) {
+    const follows = await getUserFollowStatus({ context: accessToken, recipientId: senderId });
+    const mustPrompt =
+      accessToken.provider === "ZERNIO" ? follows === false : follows !== true;
+    if (mustPrompt) {
+      try {
+        await sendDirectMessageWithButton({
+          context: accessToken,
+          instagramAccountId: automation.instagramAccount.instagramId,
+          userId: senderId,
+          text: renderMessageWithoutLink({
+            message:
+              automation.followPromptMessage ||
+              "Almost there! Follow me and tap the button below to grab your link 💛",
+            commenterName,
+          }),
+          buttonTitle: automation.followPromptButtonLabel || "I'm following ✅",
+          payload: `followcheck:${automation.id}`,
+        });
+      } catch (error) {
+        console.log("[DM Worker] Failed to send follow prompt after email:", formatError(error));
+      }
+      await emailGateBestEffort("CRM sync", () => syncCaptureToCrm(capture.id, automation));
+      return true;
+    }
+  }
+
   const usage = await reserveWorkspaceDMSend(automation.workspaceId);
   if (!usage.allowed) {
     await prisma.dmLog.upsert({
@@ -1665,8 +1699,14 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     // postback path's fail-open one. Fail-open is only safe after a tap, where
     // the user has already claimed to follow; here it would hand the link to
     // anyone whose status the API happens not to resolve.
+    // Email first, then follow (see processComment).
+    const knownEmail = automation.requireEmail
+      ? await findCapturedEmail(automation.instagramAccountId, senderId, commenterName)
+      : null;
+    const sendEmailPrompt = automation.requireEmail && !knownEmail;
+
     let sendFollowPrompt = false;
-    if (automation.requireFollow) {
+    if (automation.requireFollow && !sendEmailPrompt) {
       const follows = await getUserFollowStatus({
         context: accessToken,
         recipientId: senderId,
@@ -1700,7 +1740,15 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     }
 
     try {
-      if (sendFollowPrompt) {
+      if (sendEmailPrompt) {
+        await markEmailAwaiting(automation, senderId, commenterName);
+        await sendDirectMessage({
+          context: accessToken,
+          instagramAccountId: automation.instagramAccount.instagramId,
+          userId: senderId,
+          message: emailPromptText(automation, commenterName),
+        });
+      } else if (sendFollowPrompt) {
         const promptText = renderMessageWithoutLink({
           message:
             automation.followPromptMessage ||
@@ -1715,17 +1763,6 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
           buttonTitle: automation.followPromptButtonLabel || "I'm following ✅",
           payload: `followcheck:${automation.id}`,
         });
-      } else if (
-        automation.requireEmail &&
-        !(await findCapturedEmail(automation.instagramAccountId, senderId))
-      ) {
-        await markEmailAwaiting(automation, senderId, commenterName);
-        await sendDirectMessage({
-          context: accessToken,
-          instagramAccountId: automation.instagramAccount.instagramId,
-          userId: senderId,
-          message: emailPromptText(automation, commenterName),
-        });
       } else {
         await sendRevealDirectMessage({
           accessToken: accessToken,
@@ -1736,8 +1773,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
         });
         if (automation.requireEmail) {
           await emailGateBestEffort("known email", async () => {
-            const known = await findCapturedEmail(automation.instagramAccountId, senderId);
-            if (known) await recordKnownEmail(automation, senderId, commenterName, known);
+            if (knownEmail) await recordKnownEmail(automation, senderId, commenterName, knownEmail);
           });
         }
 

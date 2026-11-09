@@ -87,6 +87,7 @@ model Workspace {
   operationalEvents OperationalEvent[]
   serviceKeys       ServiceKey[]
   emailCaptures     EmailCapture[]
+  knownContacts     KnownContact[]
 
   @@index([ownerId])
 }
@@ -162,6 +163,7 @@ model InstagramAccount {
   linkClicks  LinkClick[]
   followerSnapshots FollowerSnapshot[]
   emailCaptures EmailCapture[]
+  knownContacts KnownContact[]
 
   @@index([workspaceId])
 }
@@ -418,6 +420,24 @@ model EmailCapture {
 
   @@unique([automationId, igUserId])
   @@index([instagramAccountId, igUserId, status])
+  @@index([workspaceId])
+}
+
+// Email addresses already known for an Instagram username, imported from
+// another tool (e.g. a ManyChat contacts export) so people are not asked again.
+model KnownContact {
+  id                 String   @id @default(cuid())
+  workspaceId        String
+  instagramAccountId String
+  igUsername         String
+  email              String
+  source             String   @default("import")
+  createdAt          DateTime @default(now())
+
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([instagramAccountId, igUsername])
   @@index([workspaceId])
 }
 

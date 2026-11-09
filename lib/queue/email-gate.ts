@@ -19,18 +19,29 @@ export type EmailGateAutomation = {
 
 /**
  * An address this person already gave the same Instagram account, through any
- * campaign. They are not asked twice: the link goes straight out.
+ * campaign, or that was imported for their username (e.g. from a ManyChat
+ * export). They are not asked twice: the flow moves straight on.
  */
 export async function findCapturedEmail(
   instagramAccountId: string,
   igUserId: string,
+  igUsername?: string | null,
 ): Promise<string | null> {
   const capture = await prisma.emailCapture.findFirst({
     where: { instagramAccountId, igUserId, status: "CAPTURED", email: { not: null } },
     orderBy: { capturedAt: "desc" },
     select: { email: true },
   });
-  return capture?.email ?? null;
+  if (capture?.email) return capture.email;
+  if (!igUsername) return null;
+  const known = await prisma.knownContact.findFirst({
+    where: {
+      instagramAccountId,
+      igUsername: { equals: igUsername.replace(/^@/, ""), mode: "insensitive" },
+    },
+    select: { email: true },
+  });
+  return known?.email ?? null;
 }
 
 /** Record that we asked this person for their address on this campaign. */
