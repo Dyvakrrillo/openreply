@@ -6,7 +6,9 @@ import { canConnectInstagramAccount } from "@/lib/instagram-accounts";
 import {
   getAssignedInstagramAccounts,
   getLongLivedToken,
+  getPagesWithInstagram,
   inspectUnifiedToken,
+  subscribePageToWebhooks,
   getUserInfo,
   subscribeInstagramAccountToWebhooks,
 } from "@/lib/meta/client";
@@ -149,9 +151,15 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * Unified login: one Facebook system-user token (no expiry) covers every
- * Instagram account picked on Meta's consent screen, so each assigned account
- * is connected with the same token. Returns how many were connected.
+ * Unified login. Two token shapes can come back, depending on the login
+ * configuration:
+ * - a user token (configuration with "User access token" and Pages): each
+ *   Instagram account is reached through its linked Facebook Page, whose Page
+ *   token never expires. Works in development mode with Standard Access.
+ * - a system-user token: accounts come from /me/assigned_instagram_accounts,
+ *   which Meta only fills when business_management survives into the token
+ *   (Advanced Access on public_profile, i.e. App Review).
+ * Returns how many accounts were connected.
  */
 async function connectUnifiedLogin({
   code,
@@ -163,16 +171,25 @@ async function connectUnifiedLogin({
   workspaceId: string;
 }): Promise<number> {
   const token = await exchangeUnifiedCodeForToken(code, redirectUri);
-  let assigned = await getAssignedInstagramAccounts(token).catch(() => []);
 
-  // Fall back to the accounts the consent screen granted, read from the
-  // token's granular scopes. Also gives a precise error when nothing works.
-  let grant: { scopes: string[]; instagramIds: string[] } = { scopes: [], instagramIds: [] };
-  try {
-    grant = await inspectUnifiedToken(token);
-  } catch (inspectError) {
-    console.warn("[Instagram Callback] Token inspection failed:", inspectError);
+  const candidates: { instagramId: string; token: string; pageId?: string }[] = [];
+  const pages = await getPagesWithInstagram(token).catch(() => []);
+  for (const page of pages) {
+    candidates.push({ instagramId: page.instagramId, token: page.pageToken, pageId: page.pageId });
   }
+
+  let grant: { scopes: string[]; instagramIds: string[] } = { scopes: [], instagramIds: [] };
+  if (candidates.length === 0) {
+    const assigned = await getAssignedInstagramAccounts(token).catch(() => []);
+    try {
+      grant = await inspectUnifiedToken(token);
+    } catch (inspectError) {
+      console.warn("[Instagram Callback] Token inspection failed:", inspectError);
+    }
+    const ids = new Set([...assigned.map((a) => a.id), ...grant.instagramIds]);
+    for (const id of ids) candidates.push({ instagramId: id, token });
+  }
+
   await prisma.operationalEvent
     .create({
       data: {
@@ -181,35 +198,29 @@ async function connectUnifiedLogin({
         workspaceId,
         message: "Unified login token granted",
         payload: {
+          pages: pages.map((p) => ({ pageId: p.pageId, instagramId: p.instagramId })),
           scopes: grant.scopes,
-          grantedInstagramIds: grant.instagramIds,
-          assignedInstagramIds: assigned.map((a) => a.id),
+          candidates: candidates.map((c) => c.instagramId),
         },
       },
     })
     .catch(() => {});
 
-  if (assigned.length === 0) {
-    assigned = grant.instagramIds.map((id) => ({ id }));
-  }
-  if (assigned.length === 0) {
+  if (candidates.length === 0) {
     throw new Error(
-      `Meta granted no Instagram account to this app (token scopes: ${
-        grant.scopes.join(", ") || "unknown"
-      }). Pick the Instagram account on Meta's screen and make sure the login configuration includes business_management.`
+      "Meta returned no Instagram account. Use a login configuration with a User access token and Pages, pick the Facebook Page linked to the Instagram account, and make sure the Instagram account is linked to that Page."
     );
   }
 
-  const encryptedToken = encryptToken(token);
   let connected = 0;
   const failures: string[] = [];
-  for (const assignedAccount of assigned) {
+  for (const candidate of candidates) {
     let userInfo;
     try {
-      userInfo = await getUserInfo(token, assignedAccount.id);
+      userInfo = await getUserInfo(candidate.token, candidate.instagramId);
     } catch (readError) {
       failures.push(
-        `${assignedAccount.id}: ${readError instanceof Error ? readError.message : "unreadable"}`
+        `${candidate.instagramId}: ${readError instanceof Error ? readError.message : "unreadable"}`
       );
       continue;
     }
@@ -219,7 +230,9 @@ async function connectUnifiedLogin({
 
     let webhookSubscribed = false;
     try {
-      const subscription = await subscribeInstagramAccountToWebhooks(instagramId, token);
+      const subscription = candidate.pageId
+        ? await subscribePageToWebhooks(candidate.pageId, candidate.token)
+        : await subscribeInstagramAccountToWebhooks(instagramId, candidate.token);
       webhookSubscribed = Boolean(subscription.success);
     } catch (subscriptionError) {
       console.warn("[Instagram Callback] Webhook subscription failed:", subscriptionError);
@@ -228,8 +241,8 @@ async function connectUnifiedLogin({
     const data = {
       username: userInfo.username,
       name: userInfo.name,
-      accessToken: encryptedToken,
-      // System-user tokens do not expire, so the refresh cron skips them.
+      accessToken: encryptToken(candidate.token),
+      // Page and system-user tokens do not expire, so the refresh cron skips them.
       tokenExpiresAt: null,
       webhookSubscribed,
     };
@@ -248,9 +261,7 @@ async function connectUnifiedLogin({
     connected++;
   }
   if (connected === 0 && failures.length > 0) {
-    throw new Error(
-      `Meta granted the account but it cannot be read yet (token scopes: ${grant.scopes.join(", ") || "unknown"}). ${failures[0]}`
-    );
+    throw new Error(`Meta returned the account but it cannot be read yet. ${failures[0]}`);
   }
   return connected;
 }

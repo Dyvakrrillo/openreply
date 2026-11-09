@@ -25,6 +25,13 @@ export function graphBaseFor(accessToken: string): string {
   return isUnifiedToken(accessToken) ? facebookGraphBase() : instagramGraphBase();
 }
 
+// With a Facebook Page token (unified login through the Page linked to the
+// Instagram account), Instagram messaging lives on the Page: /me/messages and
+// /me/conversations, where /me is the Page.
+function messagingNode(accessToken: string, instagramAccountId: string): string {
+  return isUnifiedToken(accessToken) ? "me" : instagramAccountId;
+}
+
 // On a unified token /me is the system user, not the Instagram account, so
 // account-scoped reads must name the account explicitly.
 function accountPath(accessToken: string, instagramAccountId?: string): string {
@@ -195,7 +202,7 @@ export async function sendPrivateReply(
   message: string
 ): Promise<{ recipient_id: string; message_id: string }> {
   const response = await fetch(
-    `${graphBaseFor(accessToken)}/${instagramAccountId}/messages`,
+    `${graphBaseFor(accessToken)}/${messagingNode(accessToken, instagramAccountId)}/messages`,
     {
       method: "POST",
       headers: {
@@ -227,7 +234,7 @@ export async function sendPrivateReplyWithButton(
   payload: string
 ): Promise<{ recipient_id: string; message_id: string }> {
   const response = await fetch(
-    `${graphBaseFor(accessToken)}/${instagramAccountId}/messages`,
+    `${graphBaseFor(accessToken)}/${messagingNode(accessToken, instagramAccountId)}/messages`,
     {
       method: "POST",
       headers: {
@@ -270,7 +277,7 @@ export async function sendDirectMessageWithButton(
   payload: string
 ): Promise<{ recipient_id: string; message_id: string }> {
   const response = await fetch(
-    `${graphBaseFor(accessToken)}/${instagramAccountId}/messages`,
+    `${graphBaseFor(accessToken)}/${messagingNode(accessToken, instagramAccountId)}/messages`,
     {
       method: "POST",
       headers: {
@@ -386,7 +393,7 @@ export async function sendPrivateReplyWithLinkButton(
   buttons: LinkButton[]
 ): Promise<{ recipient_id: string; message_id: string }> {
   const response = await fetch(
-    `${graphBaseFor(accessToken)}/${instagramAccountId}/messages`,
+    `${graphBaseFor(accessToken)}/${messagingNode(accessToken, instagramAccountId)}/messages`,
     {
       method: "POST",
       headers: {
@@ -423,7 +430,7 @@ export async function sendDirectMessage(
   message: string
 ): Promise<{ recipient_id: string; message_id: string }> {
   const response = await fetch(
-    `${graphBaseFor(accessToken)}/${instagramAccountId}/messages`,
+    `${graphBaseFor(accessToken)}/${messagingNode(accessToken, instagramAccountId)}/messages`,
     {
       method: "POST",
       headers: {
@@ -452,7 +459,7 @@ export async function sendDirectMessageWithLinkButton(
   buttons: LinkButton[]
 ): Promise<{ recipient_id: string; message_id: string }> {
   const response = await fetch(
-    `${graphBaseFor(accessToken)}/${instagramAccountId}/messages`,
+    `${graphBaseFor(accessToken)}/${messagingNode(accessToken, instagramAccountId)}/messages`,
     {
       method: "POST",
       headers: {
@@ -610,7 +617,7 @@ export async function getConversations(
   async function readPage(limit: number, requestedFields: string): Promise<Page> {
     // Never follow Meta's next URL: rebuild on our trusted host and carry the
     // token separately. A messages.paging cursor must never advance this list.
-    const url = new URL(`${graphBaseFor(accessToken)}/${igUserId}/conversations`);
+    const url = new URL(`${graphBaseFor(accessToken)}/${messagingNode(accessToken, igUserId)}/conversations`);
     url.searchParams.set("platform", "instagram");
     url.searchParams.set("fields", requestedFields);
     url.searchParams.set("limit", String(limit));
@@ -966,6 +973,45 @@ export async function inspectUnifiedToken(
     }
   }
   return { scopes, instagramIds: [...ids] };
+}
+
+/**
+ * Facebook Pages the login granted, with their own (non-expiring) Page tokens
+ * and the Instagram professional account linked to each.
+ */
+export async function getPagesWithInstagram(accessToken: string): Promise<
+  { pageId: string; pageToken: string; instagramId: string; username?: string }[]
+> {
+  const url = new URL(`${facebookGraphBase()}/me/accounts`);
+  url.searchParams.set("fields", "id,access_token,instagram_business_account{id,username}");
+  url.searchParams.set("limit", "100");
+  url.searchParams.set("access_token", accessToken);
+  const data = await handleResponse<{
+    data?: {
+      id: string;
+      access_token?: string;
+      instagram_business_account?: { id: string; username?: string };
+    }[];
+  }>(await fetch(url.toString()));
+  return (data.data ?? [])
+    .filter((page) => page.access_token && page.instagram_business_account?.id)
+    .map((page) => ({
+      pageId: page.id,
+      pageToken: page.access_token as string,
+      instagramId: page.instagram_business_account!.id,
+      username: page.instagram_business_account!.username,
+    }));
+}
+
+/** Turn on webhook delivery for a Page (and its linked Instagram account). */
+export async function subscribePageToWebhooks(
+  pageId: string,
+  pageToken: string
+): Promise<{ success: boolean }> {
+  const url = new URL(`${facebookGraphBase()}/${pageId}/subscribed_apps`);
+  url.searchParams.set("subscribed_fields", "feed");
+  url.searchParams.set("access_token", pageToken);
+  return handleResponse(await fetch(url.toString(), { method: "POST" }));
 }
 
 export async function debugToken(inputToken: string, accessToken: string) {

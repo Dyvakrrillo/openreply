@@ -55,11 +55,11 @@ describe("unified login API calls", () => {
     expect(url.pathname).toMatch(/\/me\/media$/);
   });
 
-  it("sends messages through graph.facebook.com", async () => {
+  it("sends messages through the Page on graph.facebook.com", async () => {
     fetchMock.mockResolvedValue(json({ recipient_id: "u", message_id: "m" }));
     await sendDirectMessage(UNIFIED, "1784", "u", "hi");
     expect(String(fetchMock.mock.calls[0][0])).toMatch(
-      /^https:\/\/graph\.facebook\.com\/v[\d.]+\/1784\/messages$/
+      /^https:\/\/graph\.facebook\.com\/v[\d.]+\/me\/messages$/
     );
   });
 
