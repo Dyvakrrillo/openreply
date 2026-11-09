@@ -36,8 +36,23 @@ const INSTAGRAM_OAUTH_ENV = [
   "NEXTAUTH_SECRET",
 ] as const;
 
+// Unified login (Facebook Login for Business) replaces the Instagram app id
+// and secret with the Facebook app id, its secret and a login configuration.
+const UNIFIED_OAUTH_ENV = [
+  "META_APP_ID",
+  "META_LOGIN_CONFIG_ID",
+  "FACEBOOK_APP_SECRET",
+  "ENCRYPTION_KEY",
+  "NEXTAUTH_SECRET",
+] as const;
+
+export function isUnifiedLoginConfigured(): boolean {
+  return Boolean(process.env.META_LOGIN_CONFIG_ID);
+}
+
 export function getMissingInstagramOAuthEnv(): string[] {
-  return INSTAGRAM_OAUTH_ENV.filter((name) => {
+  const required = isUnifiedLoginConfigured() ? UNIFIED_OAUTH_ENV : INSTAGRAM_OAUTH_ENV;
+  return required.filter((name) => {
     const value = process.env[name];
     if (!value) return true;
     // A malformed key fails later inside encryptToken, after the user has

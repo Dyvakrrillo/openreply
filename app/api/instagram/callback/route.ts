@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
-import { getBaseUrl } from "@/lib/env";
+import { getBaseUrl, isUnifiedLoginConfigured } from "@/lib/env";
 import { canConnectInstagramAccount } from "@/lib/instagram-accounts";
-import { getLongLivedToken, getUserInfo, subscribeInstagramAccountToWebhooks } from "@/lib/meta/client";
+import {
+  getAssignedInstagramAccounts,
+  getLongLivedToken,
+  getUserInfo,
+  subscribeInstagramAccountToWebhooks,
+} from "@/lib/meta/client";
 import {
   encryptToken,
   exchangeCodeForToken,
+  exchangeUnifiedCodeForToken,
   verifyOAuthState,
 } from "@/lib/meta/oauth";
 import { canManageWorkspace } from "@/lib/workspace-access";
@@ -43,6 +49,20 @@ export async function GET(request: NextRequest) {
 
   try {
     const redirectUri = `${baseUrl}/api/instagram/callback`;
+
+    if (isUnifiedLoginConfigured()) {
+      const connected = await connectUnifiedLogin({
+        code,
+        redirectUri,
+        workspaceId: state.workspaceId,
+      });
+      return NextResponse.redirect(
+        connected > 0
+          ? `${baseUrl}/dashboard?connected=true`
+          : `${baseUrl}/settings?instagram=already_connected`
+      );
+    }
+
     const { accessToken: shortLivedToken } = await exchangeCodeForToken(
       code,
       redirectUri
@@ -125,4 +145,67 @@ export async function GET(request: NextRequest) {
       )}`
     );
   }
+}
+
+/**
+ * Unified login: one Facebook system-user token (no expiry) covers every
+ * Instagram account picked on Meta's consent screen, so each assigned account
+ * is connected with the same token. Returns how many were connected.
+ */
+async function connectUnifiedLogin({
+  code,
+  redirectUri,
+  workspaceId,
+}: {
+  code: string;
+  redirectUri: string;
+  workspaceId: string;
+}): Promise<number> {
+  const token = await exchangeUnifiedCodeForToken(code, redirectUri);
+  const assigned = await getAssignedInstagramAccounts(token);
+  if (assigned.length === 0) {
+    throw new Error(
+      "Meta granted no Instagram account to this app. Add business_management to the Facebook Login for Business configuration, then connect again."
+    );
+  }
+
+  const encryptedToken = encryptToken(token);
+  let connected = 0;
+  for (const assignedAccount of assigned) {
+    const userInfo = await getUserInfo(token, assignedAccount.id);
+    const instagramId = userInfo.user_id ?? userInfo.id;
+    const connection = await canConnectInstagramAccount({ workspaceId, instagramId });
+    if (!connection.allowed) continue;
+
+    let webhookSubscribed = false;
+    try {
+      const subscription = await subscribeInstagramAccountToWebhooks(instagramId, token);
+      webhookSubscribed = Boolean(subscription.success);
+    } catch (subscriptionError) {
+      console.warn("[Instagram Callback] Webhook subscription failed:", subscriptionError);
+    }
+
+    const data = {
+      username: userInfo.username,
+      name: userInfo.name,
+      accessToken: encryptedToken,
+      // System-user tokens do not expire, so the refresh cron skips them.
+      tokenExpiresAt: null,
+      webhookSubscribed,
+    };
+    const existing = await prisma.instagramAccount.findUnique({ where: { instagramId } });
+    if (existing) {
+      const updated = await prisma.instagramAccount.updateMany({
+        where: { id: existing.id, workspaceId, provider: "META" },
+        data,
+      });
+      if (!updated.count) continue;
+    } else {
+      await prisma.instagramAccount.create({
+        data: { ...data, workspaceId, instagramId, provider: "META" },
+      });
+    }
+    connected++;
+  }
+  return connected;
 }
