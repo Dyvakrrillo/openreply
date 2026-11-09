@@ -26,10 +26,45 @@ export function graphBaseFor(accessToken: string): string {
 }
 
 // With a Facebook Page token (unified login through the Page linked to the
-// Instagram account), Instagram messaging lives on the Page: /me/messages and
-// /me/conversations, where /me is the Page.
+// Instagram account), Meta documents messaging both on the Instagram account
+// and on the Page (/me). Conversations are read through the Page.
 function messagingNode(accessToken: string, instagramAccountId: string): string {
   return isUnifiedToken(accessToken) ? "me" : instagramAccountId;
+}
+
+/**
+ * POST to the messages edge. Instagram Login tokens use the account id. Page
+ * tokens try the Instagram account id first, then the Page (/me), and only
+ * fall through on Meta's "object does not exist / unsupported" answer (100/33),
+ * so a real rejection is never sent twice.
+ */
+async function fetchMessages(
+  accessToken: string,
+  instagramAccountId: string,
+  init: RequestInit
+): Promise<Response> {
+  const base = graphBaseFor(accessToken);
+  if (!isUnifiedToken(accessToken)) {
+    return fetch(`${base}/${instagramAccountId}/messages`, init);
+  }
+  const nodes = [instagramAccountId, "me"];
+  let last: Response | null = null;
+  for (const node of nodes) {
+    const response = await fetch(`${base}/${node}/messages`, init);
+    if (response.ok) return response;
+    const text = await response.text();
+    let code: number | undefined;
+    let subcode: number | undefined;
+    try {
+      const err = JSON.parse(text)?.error;
+      code = err?.code;
+      subcode = err?.error_subcode;
+    } catch {}
+    last = new Response(text, { status: response.status, headers: response.headers });
+    Object.defineProperty(last, "url", { value: response.url });
+    if (!(code === 100 && subcode === 33)) return last;
+  }
+  return last as Response;
 }
 
 // On a unified token /me is the system user, not the Instagram account, so
@@ -201,8 +236,7 @@ export async function sendPrivateReply(
   commentId: string,
   message: string
 ): Promise<{ recipient_id: string; message_id: string }> {
-  const response = await fetch(
-    `${graphBaseFor(accessToken)}/${messagingNode(accessToken, instagramAccountId)}/messages`,
+  const response = await fetchMessages(accessToken, instagramAccountId,
     {
       method: "POST",
       headers: {
@@ -233,8 +267,7 @@ export async function sendPrivateReplyWithButton(
   buttonTitle: string,
   payload: string
 ): Promise<{ recipient_id: string; message_id: string }> {
-  const response = await fetch(
-    `${graphBaseFor(accessToken)}/${messagingNode(accessToken, instagramAccountId)}/messages`,
+  const response = await fetchMessages(accessToken, instagramAccountId,
     {
       method: "POST",
       headers: {
@@ -276,8 +309,7 @@ export async function sendDirectMessageWithButton(
   buttonTitle: string,
   payload: string
 ): Promise<{ recipient_id: string; message_id: string }> {
-  const response = await fetch(
-    `${graphBaseFor(accessToken)}/${messagingNode(accessToken, instagramAccountId)}/messages`,
+  const response = await fetchMessages(accessToken, instagramAccountId,
     {
       method: "POST",
       headers: {
@@ -392,8 +424,7 @@ export async function sendPrivateReplyWithLinkButton(
   text: string,
   buttons: LinkButton[]
 ): Promise<{ recipient_id: string; message_id: string }> {
-  const response = await fetch(
-    `${graphBaseFor(accessToken)}/${messagingNode(accessToken, instagramAccountId)}/messages`,
+  const response = await fetchMessages(accessToken, instagramAccountId,
     {
       method: "POST",
       headers: {
@@ -429,8 +460,7 @@ export async function sendDirectMessage(
   userId: string,
   message: string
 ): Promise<{ recipient_id: string; message_id: string }> {
-  const response = await fetch(
-    `${graphBaseFor(accessToken)}/${messagingNode(accessToken, instagramAccountId)}/messages`,
+  const response = await fetchMessages(accessToken, instagramAccountId,
     {
       method: "POST",
       headers: {
@@ -458,8 +488,7 @@ export async function sendDirectMessageWithLinkButton(
   text: string,
   buttons: LinkButton[]
 ): Promise<{ recipient_id: string; message_id: string }> {
-  const response = await fetch(
-    `${graphBaseFor(accessToken)}/${messagingNode(accessToken, instagramAccountId)}/messages`,
+  const response = await fetchMessages(accessToken, instagramAccountId,
     {
       method: "POST",
       headers: {

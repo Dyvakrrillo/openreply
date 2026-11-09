@@ -55,12 +55,34 @@ describe("unified login API calls", () => {
     expect(url.pathname).toMatch(/\/me\/media$/);
   });
 
-  it("sends messages through the Page on graph.facebook.com", async () => {
+  it("sends messages to the Instagram account on graph.facebook.com", async () => {
     fetchMock.mockResolvedValue(json({ recipient_id: "u", message_id: "m" }));
     await sendDirectMessage(UNIFIED, "1784", "u", "hi");
     expect(String(fetchMock.mock.calls[0][0])).toMatch(
-      /^https:\/\/graph\.facebook\.com\/v[\d.]+\/me\/messages$/
+      /^https:\/\/graph\.facebook\.com\/v[\d.]+\/1784\/messages$/
     );
+  });
+
+  it("falls back to the Page when the account node is unsupported", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: { code: 100, error_subcode: 33, message: "x" } }), {
+          status: 400,
+        })
+      )
+      .mockResolvedValueOnce(json({ recipient_id: "u", message_id: "m" }));
+    await sendDirectMessage(UNIFIED, "1784", "u", "hi");
+    expect(String(fetchMock.mock.calls[1][0])).toMatch(/\/me\/messages$/);
+  });
+
+  it("does not retry a real rejection", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { code: 10, message: "outside window" } }), {
+        status: 400,
+      })
+    );
+    await expect(sendDirectMessage(UNIFIED, "1784", "u", "hi")).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("lists the accounts assigned to the system user", async () => {
