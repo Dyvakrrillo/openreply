@@ -474,5 +474,14 @@
   "Hmm, that doesn't look like an email address. Could you type it again? (e.g. name@example.com)": "嗯，這看起來不像電子郵件地址。可以再輸入一次嗎？（例如 name@example.com）",
   "CRM webhook URL (e.g. FluentCRM incoming webhook)": "CRM Webhook 網址（例如 FluentCRM 傳入 Webhook）",
   "We ask for their email in the DM and send the link once they type it. Someone who already gave this account their email gets the link right away. Each address is posted to the CRM webhook, which picks the list and tags. Needs the messages webhook field.": "我們會在私訊中索取電子郵件，對方輸入後才傳送連結。已向此帳號提供過電子郵件的人會直接收到連結。每個地址都會傳送到 CRM Webhook，由它決定名單和標籤。需要訂閱 messages Webhook 欄位。",
-  "The CRM webhook URL must start with https://.": "CRM Webhook 網址必須以 https:// 開頭。"
+  "The CRM webhook URL must start with https://.": "CRM Webhook 網址必須以 https:// 開頭。",
+  "Save as draft": "儲存為草稿",
+  "Known contacts": "已知聯絡人",
+  "Emails you already have for Instagram usernames. Campaigns that ask for an email skip the question for these people.": "你已擁有的 Instagram 使用者名稱對應電子郵件。索取電子郵件的活動會略過這些人。",
+  "{count} known contacts": "{count} 位已知聯絡人",
+  "Or paste CSV lines: instagram_username, email": "或貼上 CSV 行：instagram_username, email",
+  "Importing…": "匯入中…",
+  "Import contacts": "匯入聯絡人",
+  "Import failed.": "匯入失敗。",
+  "{saved} contacts saved, {skipped} lines skipped.": "已儲存 {saved} 位聯絡人，略過 {skipped} 行。"
 }

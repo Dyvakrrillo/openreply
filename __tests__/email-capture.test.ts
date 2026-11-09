@@ -56,3 +56,24 @@ describe("CRM webhook", () => {
     ).rejects.toThrow("CRM webhook answered 403: bad hash");
   });
 });
+
+import { parseKnownContactsCsv, normalizeUsername } from "../lib/email-capture/known-contacts";
+
+describe("known contacts CSV", () => {
+  it("reads a header row with quoted cells and semicolons", () => {
+    const csv = 'Name;Instagram Username;Email\n"Jane; D";@Jane.Doe;jane@example.com\nBob;bob;not-an-email\n';
+    expect(parseKnownContactsCsv(csv)).toEqual({
+      contacts: [{ igUsername: "jane.doe", email: "jane@example.com" }],
+      skipped: 1,
+    });
+  });
+
+  it("accepts headerless username,email lines", () => {
+    expect(parseKnownContactsCsv("alice,alice@example.com\nbob,bob@example.com").contacts).toHaveLength(2);
+  });
+
+  it("normalizes profile URLs and handles", () => {
+    expect(normalizeUsername("https://www.instagram.com/La_Prof/")).toBe("la_prof");
+    expect(normalizeUsername("@x y")).toBeNull();
+  });
+});

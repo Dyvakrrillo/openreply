@@ -5,6 +5,7 @@ import { useI18n } from "@/lib/i18n/provider";
 import { Suspense, useEffect, useState } from "react";
 import type { AccountOption } from "@/components/account-select";
 import { ZernioConnection } from "@/components/zernio-connection";
+import { KnownContacts } from "@/components/known-contacts";
 import { InstagramConnectNotice } from "@/components/instagram-connect-notice";
 
 interface SettingsData {
@@ -146,6 +147,8 @@ export default function SettingsPage() {
         <LanguageSwitcher />
         <p className="text-sm text-muted">{t("Saved in this browser. Campaign messages stay unchanged.")}</p>
       </section>
+
+      <KnownContacts accounts={accounts} canManage={canManageMembers} />
 
       <ZernioConnection canManage={canManageMembers} />
 

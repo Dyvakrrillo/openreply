@@ -474,5 +474,14 @@
   "Hmm, that doesn't look like an email address. Could you type it again? (e.g. name@example.com)": "Hmm, isso não parece um e-mail. Pode digitar de novo? (ex.: nome@exemplo.com)",
   "CRM webhook URL (e.g. FluentCRM incoming webhook)": "URL do webhook do CRM (ex.: webhook de entrada do FluentCRM)",
   "We ask for their email in the DM and send the link once they type it. Someone who already gave this account their email gets the link right away. Each address is posted to the CRM webhook, which picks the list and tags. Needs the messages webhook field.": "Pedimos o e-mail na DM e enviamos o link assim que a pessoa digitar. Quem já deu o e-mail a esta conta recebe o link na hora. Cada endereço é enviado ao webhook do CRM, que escolhe a lista e as tags. Requer o campo de webhook messages.",
-  "The CRM webhook URL must start with https://.": "A URL do webhook do CRM deve começar com https://."
+  "The CRM webhook URL must start with https://.": "A URL do webhook do CRM deve começar com https://.",
+  "Save as draft": "Salvar como rascunho",
+  "Known contacts": "Contatos conhecidos",
+  "Emails you already have for Instagram usernames. Campaigns that ask for an email skip the question for these people.": "E-mails que você já tem para nomes de usuário do Instagram. Campanhas que pedem e-mail pulam a pergunta para essas pessoas.",
+  "{count} known contacts": "{count} contatos conhecidos",
+  "Or paste CSV lines: instagram_username, email": "Ou cole linhas CSV: instagram_username, email",
+  "Importing…": "Importando…",
+  "Import contacts": "Importar contatos",
+  "Import failed.": "Falha na importação.",
+  "{saved} contacts saved, {skipped} lines skipped.": "{saved} contatos salvos, {skipped} linhas ignoradas."
 }

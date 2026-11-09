@@ -474,5 +474,14 @@
   "Hmm, that doesn't look like an email address. Could you type it again? (e.g. name@example.com)": "Хм, это не похоже на адрес эл. почты. Напишите ещё раз? (например, name@example.com)",
   "CRM webhook URL (e.g. FluentCRM incoming webhook)": "URL вебхука CRM (например, входящий вебхук FluentCRM)",
   "We ask for their email in the DM and send the link once they type it. Someone who already gave this account their email gets the link right away. Each address is posted to the CRM webhook, which picks the list and tags. Needs the messages webhook field.": "Мы спрашиваем адрес эл. почты в личных сообщениях и отправляем ссылку, как только человек его напишет. Тот, кто уже давал адрес этому аккаунту, сразу получает ссылку. Каждый адрес отправляется на вебхук CRM, который выбирает список и теги. Нужно поле вебхука messages.",
-  "The CRM webhook URL must start with https://.": "URL вебхука CRM должен начинаться с https://."
+  "The CRM webhook URL must start with https://.": "URL вебхука CRM должен начинаться с https://.",
+  "Save as draft": "Сохранить черновик",
+  "Known contacts": "Известные контакты",
+  "Emails you already have for Instagram usernames. Campaigns that ask for an email skip the question for these people.": "Адреса эл. почты, которые у вас уже есть для имён пользователей Instagram. Кампании, запрашивающие эл. почту, пропускают вопрос для этих людей.",
+  "{count} known contacts": "Известных контактов: {count}",
+  "Or paste CSV lines: instagram_username, email": "Или вставьте строки CSV: instagram_username, email",
+  "Importing…": "Импорт…",
+  "Import contacts": "Импортировать контакты",
+  "Import failed.": "Не удалось импортировать.",
+  "{saved} contacts saved, {skipped} lines skipped.": "Сохранено контактов: {saved}, пропущено строк: {skipped}."
 }
