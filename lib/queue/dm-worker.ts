@@ -782,7 +782,19 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           hashRecipientId(commenterId)
         );
 
-        try {
+        // Only one private reply per comment is allowed, so a text longer than
+        // a button template allows goes out as plain text with inline links.
+        if (bodyText.length > BUTTON_TEMPLATE_TEXT_LIMIT) {
+          await sendPrivateReply({
+            context: accessToken,
+            instagramAccountId: automation.instagramAccount.instagramId,
+            commentId: commentId,
+            message: `${bodyText}\n\n${automation.trackedLinks
+              .map((link) => buildTrackedUrl(link.slug, undefined, hashRecipientId(commenterId)))
+              .join("\n")}`,
+            postId: mediaId,
+          });
+        } else try {
           await sendPrivateReplyWithLinkButton({
             context: accessToken,
             instagramAccountId: automation.instagramAccount.instagramId,
