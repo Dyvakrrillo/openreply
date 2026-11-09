@@ -288,6 +288,20 @@ async function connectUnifiedLogin({
       webhookSubscribed = Boolean(subscription.success);
     } catch (subscriptionError) {
       console.warn("[Instagram Callback] Webhook subscription failed:", subscriptionError);
+      await prisma.operationalEvent
+        .create({
+          data: {
+            source: "SYSTEM",
+            level: "ERROR",
+            workspaceId,
+            message: "Page webhook subscription failed",
+            payload: {
+              pageId: candidate.pageId ?? null,
+              error: subscriptionError instanceof Error ? subscriptionError.message : String(subscriptionError),
+            },
+          },
+        })
+        .catch(() => {});
     }
 
     const data = {

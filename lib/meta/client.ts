@@ -1066,10 +1066,22 @@ export async function subscribePageToWebhooks(
   pageId: string,
   pageToken: string
 ): Promise<{ success: boolean }> {
-  const url = new URL(`${facebookGraphBase()}/${pageId}/subscribed_apps`);
-  url.searchParams.set("subscribed_fields", "feed");
-  url.searchParams.set("access_token", pageToken);
-  return handleResponse(await fetch(url.toString(), { method: "POST" }));
+  // Messaging fields need pages_messaging; fall back to feed alone, which
+  // still installs the app on the Page (what Instagram webhooks require).
+  let lastError: unknown;
+  for (const fields of ["feed,messages,messaging_postbacks", "feed"]) {
+    const url = new URL(`${facebookGraphBase()}/${pageId}/subscribed_apps`);
+    url.searchParams.set("subscribed_fields", fields);
+    url.searchParams.set("access_token", pageToken);
+    try {
+      return await handleResponse<{ success: boolean }>(
+        await fetch(url.toString(), { method: "POST" })
+      );
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
 }
 
 export async function debugToken(inputToken: string, accessToken: string) {
