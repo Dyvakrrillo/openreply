@@ -942,6 +942,32 @@ export async function subscribeInstagramAccountToWebhooks(
   return handleResponse(response);
 }
 
+/**
+ * What a unified login token was actually granted: its scopes, and the asset
+ * ids each scope covers (granular_scopes.target_ids). Read with the app token
+ * (app_id|app_secret), so it works even when the user token itself cannot read
+ * the assets yet.
+ */
+export async function inspectUnifiedToken(
+  accessToken: string
+): Promise<{ scopes: string[]; instagramIds: string[] }> {
+  const appToken = `${requireEnv("META_APP_ID")}|${requireEnv("FACEBOOK_APP_SECRET")}`;
+  const data = (await debugToken(accessToken, appToken)) as {
+    data?: {
+      scopes?: string[];
+      granular_scopes?: { scope: string; target_ids?: string[] }[];
+    };
+  };
+  const scopes = data.data?.scopes ?? [];
+  const ids = new Set<string>();
+  for (const grant of data.data?.granular_scopes ?? []) {
+    if (grant.scope.startsWith("instagram_")) {
+      for (const id of grant.target_ids ?? []) ids.add(id);
+    }
+  }
+  return { scopes, instagramIds: [...ids] };
+}
+
 export async function debugToken(inputToken: string, accessToken: string) {
   const url = new URL(`${facebookGraphBase()}/debug_token`);
   url.searchParams.set("input_token", inputToken);

@@ -6,6 +6,7 @@ import { canConnectInstagramAccount } from "@/lib/instagram-accounts";
 import {
   getAssignedInstagramAccounts,
   getLongLivedToken,
+  inspectUnifiedToken,
   getUserInfo,
   subscribeInstagramAccountToWebhooks,
 } from "@/lib/meta/client";
@@ -162,17 +163,56 @@ async function connectUnifiedLogin({
   workspaceId: string;
 }): Promise<number> {
   const token = await exchangeUnifiedCodeForToken(code, redirectUri);
-  const assigned = await getAssignedInstagramAccounts(token);
+  let assigned = await getAssignedInstagramAccounts(token).catch(() => []);
+
+  // Fall back to the accounts the consent screen granted, read from the
+  // token's granular scopes. Also gives a precise error when nothing works.
+  let grant: { scopes: string[]; instagramIds: string[] } = { scopes: [], instagramIds: [] };
+  try {
+    grant = await inspectUnifiedToken(token);
+  } catch (inspectError) {
+    console.warn("[Instagram Callback] Token inspection failed:", inspectError);
+  }
+  await prisma.operationalEvent
+    .create({
+      data: {
+        source: "SYSTEM",
+        level: "INFO",
+        workspaceId,
+        message: "Unified login token granted",
+        payload: {
+          scopes: grant.scopes,
+          grantedInstagramIds: grant.instagramIds,
+          assignedInstagramIds: assigned.map((a) => a.id),
+        },
+      },
+    })
+    .catch(() => {});
+
+  if (assigned.length === 0) {
+    assigned = grant.instagramIds.map((id) => ({ id }));
+  }
   if (assigned.length === 0) {
     throw new Error(
-      "Meta granted no Instagram account to this app. Add business_management to the Facebook Login for Business configuration, then connect again."
+      `Meta granted no Instagram account to this app (token scopes: ${
+        grant.scopes.join(", ") || "unknown"
+      }). Pick the Instagram account on Meta's screen and make sure the login configuration includes business_management.`
     );
   }
 
   const encryptedToken = encryptToken(token);
   let connected = 0;
+  const failures: string[] = [];
   for (const assignedAccount of assigned) {
-    const userInfo = await getUserInfo(token, assignedAccount.id);
+    let userInfo;
+    try {
+      userInfo = await getUserInfo(token, assignedAccount.id);
+    } catch (readError) {
+      failures.push(
+        `${assignedAccount.id}: ${readError instanceof Error ? readError.message : "unreadable"}`
+      );
+      continue;
+    }
     const instagramId = userInfo.user_id ?? userInfo.id;
     const connection = await canConnectInstagramAccount({ workspaceId, instagramId });
     if (!connection.allowed) continue;
@@ -206,6 +246,11 @@ async function connectUnifiedLogin({
       });
     }
     connected++;
+  }
+  if (connected === 0 && failures.length > 0) {
+    throw new Error(
+      `Meta granted the account but it cannot be read yet (token scopes: ${grant.scopes.join(", ") || "unknown"}). ${failures[0]}`
+    );
   }
   return connected;
 }
