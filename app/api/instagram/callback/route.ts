@@ -191,7 +191,9 @@ async function connectUnifiedLogin({
       console.warn("[Instagram Callback] Token inspection failed:", inspectError);
     }
     const ids = new Set([...assigned.map((a) => a.id), ...grant.instagramIds]);
-    for (const id of ids) candidates.push({ instagramId: id, token });
+    // A user token (no Page granted) must be the long-lived one: the token
+    // from the code exchange can expire within hours.
+    for (const id of ids) candidates.push({ instagramId: id, token: longLived });
   }
 
   await prisma.operationalEvent
@@ -246,8 +248,9 @@ async function connectUnifiedLogin({
       username: userInfo.username,
       name: userInfo.name,
       accessToken: encryptToken(candidate.token),
-      // Page and system-user tokens do not expire, so the refresh cron skips them.
-      tokenExpiresAt: null,
+      // Page and system-user tokens do not expire. A long-lived user token lasts
+      // about 60 days; the refresh cron extends it before then.
+      tokenExpiresAt: candidate.pageId ? null : new Date(Date.now() + 55 * 86_400_000),
       webhookSubscribed,
     };
     const existing = await prisma.instagramAccount.findUnique({ where: { instagramId } });

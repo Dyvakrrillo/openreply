@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { decryptToken, encryptToken } from "@/lib/meta/oauth";
-import { refreshLongLivedToken } from "@/lib/meta/client";
+import { isUnifiedToken, refreshLongLivedToken } from "@/lib/meta/client";
+import { getLongLivedFacebookUserToken } from "@/lib/meta/oauth";
 
 const DAYS_BEFORE_EXPIRY = 10;
 
@@ -56,8 +57,14 @@ export async function GET(request: NextRequest) {
   for (const account of accountsToRefresh) {
     try {
       const currentToken = decryptToken(account.accessToken);
-      const { accessToken: newToken, expiresIn } =
-        await refreshLongLivedToken(currentToken);
+      // Facebook user tokens (unified login without a Page) are extended with
+      // fb_exchange_token; Instagram Login tokens with ig_refresh_token.
+      const { accessToken: newToken, expiresIn } = isUnifiedToken(currentToken)
+        ? {
+            accessToken: await getLongLivedFacebookUserToken(currentToken),
+            expiresIn: 55 * 86_400,
+          }
+        : await refreshLongLivedToken(currentToken);
       const encryptedToken = encryptToken(newToken);
       const newExpiry = new Date(Date.now() + expiresIn * 1000);
 
