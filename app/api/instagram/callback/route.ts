@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
+import type { Prisma } from "@/app/generated/prisma/client";
 import { getBaseUrl, isUnifiedLoginConfigured } from "@/lib/env";
 import { canConnectInstagramAccount } from "@/lib/instagram-accounts";
 import {
@@ -186,6 +187,19 @@ async function connectUnifiedLogin({
     candidates.push({ instagramId: page.instagramId, token: page.pageToken, pageId: page.pageId });
   }
 
+  // Diagnostic only: what /me/accounts returns before filtering (no tokens).
+  let rawPages: unknown = null;
+  if (pages.length === 0) {
+    try {
+      const url = new URL(`https://graph.facebook.com/${process.env.META_GRAPH_API_VERSION ?? "v25.0"}/me/accounts`);
+      url.searchParams.set("fields", "id,name,tasks,instagram_business_account");
+      url.searchParams.set("access_token", longLived);
+      rawPages = await (await fetch(url.toString())).json();
+    } catch (rawError) {
+      rawPages = { error: rawError instanceof Error ? rawError.message : String(rawError) };
+    }
+  }
+
   let grant: { scopes: string[]; instagramIds: string[] } = { scopes: [], instagramIds: [] };
   if (candidates.length === 0) {
     const assigned = await getAssignedInstagramAccounts(token).catch(() => []);
@@ -210,6 +224,7 @@ async function connectUnifiedLogin({
         payload: {
           pages: pages.map((p) => ({ pageId: p.pageId, instagramId: p.instagramId })),
           pagesError,
+          rawPages: rawPages as Prisma.InputJsonValue,
           longLivedExchanged: longLived !== token,
           scopes: grant.scopes,
           candidates: candidates.map((c) => c.instagramId),
