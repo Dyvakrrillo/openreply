@@ -177,7 +177,11 @@ async function connectUnifiedLogin({
   // System-user tokens cannot be exchanged and do not need it; a user token
   // must be long-lived before its Page tokens are read.
   const longLived = await getLongLivedFacebookUserToken(token).catch(() => token);
-  const pages = await getPagesWithInstagram(longLived).catch(() => []);
+  let pagesError: string | null = null;
+  const pages = await getPagesWithInstagram(longLived).catch((error: unknown) => {
+    pagesError = error instanceof Error ? error.message : String(error);
+    return [];
+  });
   for (const page of pages) {
     candidates.push({ instagramId: page.instagramId, token: page.pageToken, pageId: page.pageId });
   }
@@ -205,6 +209,8 @@ async function connectUnifiedLogin({
         message: "Unified login token granted",
         payload: {
           pages: pages.map((p) => ({ pageId: p.pageId, instagramId: p.instagramId })),
+          pagesError,
+          longLivedExchanged: longLived !== token,
           scopes: grant.scopes,
           candidates: candidates.map((c) => c.instagramId),
         },
