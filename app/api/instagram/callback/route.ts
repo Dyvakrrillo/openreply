@@ -16,6 +16,7 @@ import {
   encryptToken,
   exchangeCodeForToken,
   exchangeUnifiedCodeForToken,
+  getLongLivedFacebookUserToken,
   verifyOAuthState,
 } from "@/lib/meta/oauth";
 import { canManageWorkspace } from "@/lib/workspace-access";
@@ -173,7 +174,10 @@ async function connectUnifiedLogin({
   const token = await exchangeUnifiedCodeForToken(code, redirectUri);
 
   const candidates: { instagramId: string; token: string; pageId?: string }[] = [];
-  const pages = await getPagesWithInstagram(token).catch(() => []);
+  // System-user tokens cannot be exchanged and do not need it; a user token
+  // must be long-lived before its Page tokens are read.
+  const longLived = await getLongLivedFacebookUserToken(token).catch(() => token);
+  const pages = await getPagesWithInstagram(longLived).catch(() => []);
   for (const page of pages) {
     candidates.push({ instagramId: page.instagramId, token: page.pageToken, pageId: page.pageId });
   }

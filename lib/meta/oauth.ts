@@ -180,6 +180,29 @@ export async function exchangeUnifiedCodeForToken(
   return String(data.access_token);
 }
 
+/**
+ * Swap a user token for a long-lived one. Page tokens read with a long-lived
+ * user token never expire; read with the short-lived token from the code
+ * exchange, they would expire within hours.
+ */
+export async function getLongLivedFacebookUserToken(userToken: string): Promise<string> {
+  const url = new URL(
+    `https://graph.facebook.com/${getMetaGraphApiVersion()}/oauth/access_token`
+  );
+  url.searchParams.set("grant_type", "fb_exchange_token");
+  url.searchParams.set("client_id", requireEnv("META_APP_ID"));
+  url.searchParams.set("client_secret", requireEnv("FACEBOOK_APP_SECRET"));
+  url.searchParams.set("fb_exchange_token", userToken);
+  const response = await fetch(url.toString());
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.access_token) {
+    throw new Error(
+      `Long-lived token exchange failed: ${data?.error?.message ?? JSON.stringify(data)}`
+    );
+  }
+  return String(data.access_token);
+}
+
 function getEncryptionKey(): Buffer {
   return Buffer.from(getEncryptionKeyHex(), "hex");
 }
