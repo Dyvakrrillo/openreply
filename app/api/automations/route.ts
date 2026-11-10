@@ -52,6 +52,9 @@ const createAutomationSchema = z
     requireEmail: z.boolean().optional().default(false),
     emailPromptMessage: z.string().max(1000).optional().nullable(),
     emailInvalidMessage: z.string().max(1000).optional().nullable(),
+    askFirstName: z.boolean().optional().default(false),
+    firstNamePromptMessage: z.string().max(1000).optional().nullable(),
+    firstNameThanksMessage: z.string().max(1000).optional().nullable(),
     crmWebhookUrl: z
       .union([
         z
@@ -128,6 +131,9 @@ const updateAutomationSchema = z.object({
   requireEmail: z.boolean().optional(),
   emailPromptMessage: z.string().max(1000).optional().nullable(),
   emailInvalidMessage: z.string().max(1000).optional().nullable(),
+  askFirstName: z.boolean().optional(),
+  firstNamePromptMessage: z.string().max(1000).optional().nullable(),
+  firstNameThanksMessage: z.string().max(1000).optional().nullable(),
   crmWebhookUrl: z
     .union([
       z
@@ -445,6 +451,15 @@ export async function POST(request: NextRequest) {
       crmWebhookUrl: parsed.data.requireEmail
         ? parsed.data.crmWebhookUrl?.trim() || null
         : null,
+      askFirstName: parsed.data.requireEmail && parsed.data.askFirstName,
+      firstNamePromptMessage:
+        parsed.data.requireEmail && parsed.data.askFirstName
+          ? parsed.data.firstNamePromptMessage?.trim() || null
+          : null,
+      firstNameThanksMessage:
+        parsed.data.requireEmail && parsed.data.askFirstName
+          ? parsed.data.firstNameThanksMessage?.trim() || null
+          : null,
       publicReplyEnabled: parsed.data.publicReplyEnabled,
       publicReplyMessages: parsed.data.publicReplyEnabled
         ? publicReplyList
@@ -569,6 +584,16 @@ export async function PATCH(request: NextRequest) {
     automationData.emailPromptMessage = null;
     automationData.emailInvalidMessage = null;
     automationData.crmWebhookUrl = null;
+    automationData.askFirstName = false;
+  }
+  if (automationData.askFirstName === false) {
+    automationData.firstNamePromptMessage = null;
+    automationData.firstNameThanksMessage = null;
+  }
+  for (const key of ["firstNamePromptMessage", "firstNameThanksMessage"] as const) {
+    if (typeof automationData[key] === "string") {
+      automationData[key] = automationData[key]?.trim() || null;
+    }
   }
   // Any-post / next-reel campaigns carry no specific post.
   if (automationData.matchAnyPost === true || automationData.pendingNextReel === true) {

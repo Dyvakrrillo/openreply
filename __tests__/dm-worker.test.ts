@@ -23,6 +23,7 @@ const {
     automation: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
     },
     dmLog: {
       findUnique: vi.fn(),
@@ -1915,5 +1916,118 @@ describe("DM Worker — email gate", () => {
     expect(mockSendDirectMessage).not.toHaveBeenCalled();
     // Falls through to normal keyword handling.
     expect(mockPrisma.automation.findMany).toHaveBeenCalled();
+  });
+
+  describe("first name", () => {
+    const firstNameAutomation = {
+      ...emailAutomation,
+      askFirstName: true,
+      firstNamePromptMessage: "Au fait, c'est quoi ton prénom ?",
+      firstNameThanksMessage: "Enchantée {prenom} ! 💛",
+    };
+    const waitingForName = {
+      ...awaiting,
+      status: "CAPTURED",
+      email: "jane@example.com",
+      firstNameAwaiting: true,
+      instagramAccountId: "ig_account_row_1",
+    };
+
+    it("asks for the first name right after the link", async () => {
+      mockPrisma.instagramAccount.findFirst.mockResolvedValue({ id: "ig_account_row_1" });
+      mockPrisma.emailCapture.findFirst.mockResolvedValueOnce(awaiting).mockResolvedValue(null);
+      mockPrisma.automation.findFirst.mockResolvedValue(firstNameAutomation);
+      mockPrisma.emailCapture.findUnique.mockResolvedValue({ ...awaiting, email: "jane@example.com" });
+
+      const processor = getProcessor();
+      await processor(messageJob("jane@example.com"));
+
+      expect(mockSendDirectMessage).toHaveBeenLastCalledWith(
+        "decrypted_token",
+        "ig_456",
+        "commenter_999",
+        "Au fait, c'est quoi ton prénom ?"
+      );
+      expect(mockPrisma.emailCapture.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ firstNameAwaiting: true }) })
+      );
+    });
+
+    it("does not ask when the campaign has it turned off", async () => {
+      mockPrisma.instagramAccount.findFirst.mockResolvedValue({ id: "ig_account_row_1" });
+      mockPrisma.emailCapture.findFirst.mockResolvedValueOnce(awaiting).mockResolvedValue(null);
+      mockPrisma.automation.findFirst.mockResolvedValue(emailAutomation);
+      mockPrisma.emailCapture.findUnique.mockResolvedValue({ ...awaiting, email: "jane@example.com" });
+
+      const processor = getProcessor();
+      await processor(messageJob("jane@example.com"));
+
+      expect(mockSendDirectMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it("stores the first name, sends it to the CRM and says thanks", async () => {
+      mockPrisma.instagramAccount.findFirst.mockResolvedValue({ id: "ig_account_row_1" });
+      mockPrisma.emailCapture.findFirst
+        .mockResolvedValueOnce(null) // no email awaited
+        .mockResolvedValueOnce(waitingForName)
+        .mockResolvedValue(null);
+      mockPrisma.automation.findMany.mockResolvedValue([]);
+      mockPrisma.automation.findUnique.mockResolvedValue(firstNameAutomation);
+      mockPrisma.emailCapture.findUnique.mockResolvedValue({ ...waitingForName, firstName: "Julie" });
+
+      const processor = getProcessor();
+      await processor(messageJob("moi c'est julie 😊"));
+
+      expect(mockPrisma.emailCapture.update).toHaveBeenCalledWith({
+        where: { id: "capture_1" },
+        data: { firstName: "Julie" },
+      });
+      const body = new URLSearchParams(fetchMock.mock.calls[0][1].body as string);
+      expect(body.get("first_name")).toBe("Julie");
+      expect(mockSendDirectMessage).toHaveBeenCalledWith(
+        "decrypted_token",
+        "ig_456",
+        "commenter_999",
+        "Enchantée Julie ! 💛"
+      );
+    });
+
+    it("lets a reply that is not a name go to normal DM handling", async () => {
+      mockPrisma.instagramAccount.findFirst.mockResolvedValue({ id: "ig_account_row_1" });
+      mockPrisma.emailCapture.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(waitingForName)
+        .mockResolvedValue(null);
+      mockPrisma.automation.findMany.mockResolvedValue([]);
+
+      const processor = getProcessor();
+      await processor(messageJob("ok merci"));
+
+      expect(mockPrisma.emailCapture.updateMany).toHaveBeenCalledWith({
+        where: { id: "capture_1", firstNameAwaiting: true },
+        data: { firstNameAwaiting: false },
+      });
+      expect(mockPrisma.emailCapture.update).not.toHaveBeenCalled();
+      expect(mockSendDirectMessage).not.toHaveBeenCalled();
+      expect(mockPrisma.automation.findMany).toHaveBeenCalled();
+    });
+
+    it("treats a campaign keyword as a request, not a name", async () => {
+      mockPrisma.instagramAccount.findFirst.mockResolvedValue({ id: "ig_account_row_1" });
+      mockPrisma.emailCapture.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(waitingForName)
+        .mockResolvedValue(null);
+      mockPrisma.automation.findMany
+        .mockResolvedValueOnce([{ keywords: ["FIGJAM"], wholeWordMatch: true, matchAnyWord: false }])
+        .mockResolvedValue([]);
+
+      const processor = getProcessor();
+      await processor(messageJob("Figjam"));
+
+      expect(mockPrisma.emailCapture.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: { firstName: "Figjam" } })
+      );
+    });
   });
 });

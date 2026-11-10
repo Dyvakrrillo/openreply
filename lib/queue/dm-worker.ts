@@ -59,11 +59,16 @@ import {
   DEFAULT_EMAIL_INVALID,
   DEFAULT_EMAIL_PROMPT,
   MAX_INVALID_EMAIL_REPLIES,
+  DEFAULT_FIRST_NAME_PROMPT,
+  DEFAULT_FIRST_NAME_THANKS,
   extractEmail,
+  extractFirstName,
 } from "@/lib/email-capture";
 import {
+  claimFirstNameQuestion,
   findAwaitingCapture,
   findCapturedEmail,
+  findFirstNameAwaiting,
   markEmailAwaiting,
   recordKnownEmail,
   syncCaptureToCrm,
@@ -319,6 +324,51 @@ async function sendRevealDirectMessage({
   }
 }
 
+
+type FirstNameAutomation = {
+  id: string;
+  workspaceId: string;
+  instagramAccountId: string;
+  requireEmail: boolean;
+  askFirstName: boolean;
+  firstNamePromptMessage: string | null;
+  instagramAccount: { instagramId: string };
+};
+
+/**
+ * Right after the link reached someone on an email-gated campaign, ask once
+ * for their first name (for newsletters). Never blocks or fails the delivery.
+ */
+async function askFirstNameAfterDelivery({
+  accessToken,
+  automation,
+  userId,
+  commenterName,
+}: {
+  accessToken: InstagramContext;
+  automation: FirstNameAutomation;
+  userId: string;
+  commenterName: string | null;
+}): Promise<void> {
+  if (!automation.requireEmail || !automation.askFirstName) return;
+  await emailGateBestEffort("first-name question", async () => {
+    const claimed = await claimFirstNameQuestion(
+      automation.id,
+      automation.instagramAccountId,
+      userId
+    );
+    if (!claimed) return;
+    await sendDirectMessage({
+      context: accessToken,
+      instagramAccountId: automation.instagramAccount.instagramId,
+      userId,
+      message: renderMessageWithoutLink({
+        message: automation.firstNamePromptMessage?.trim() || DEFAULT_FIRST_NAME_PROMPT,
+        commenterName,
+      }),
+    });
+  });
+}
 
 function connectionScope(data: DmQueueJob) {
   return data.accountConnectionId ? { instagramAccountId: data.accountConnectionId } : {};
@@ -1266,6 +1316,12 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
         },
       );
     }
+    await askFirstNameAfterDelivery({
+      accessToken,
+      automation,
+      userId,
+      commenterName,
+    });
     await prisma.dmLog.upsert({
       where: {
         automationId_commentId: {
@@ -1595,6 +1651,78 @@ async function handleEmailReply(job: Job<ProcessMessageJob>): Promise<boolean> {
   }
 
   await emailGateBestEffort("CRM sync", () => syncCaptureToCrm(capture.id, automation));
+  await askFirstNameAfterDelivery({ accessToken, automation, userId: senderId, commenterName });
+  return true;
+}
+
+/**
+ * The DM right after the first-name question. Returns true when it was a first
+ * name (stored, sent to the CRM, thanked); anything else (a keyword, a
+ * question, "ok merci") ends the wait and goes on to normal DM handling.
+ */
+async function handleFirstNameReply(job: Job<ProcessMessageJob>): Promise<boolean> {
+  const { instagramAccountId, messageText, senderId } = job.data;
+  const account = await prisma.instagramAccount.findFirst({
+    where: {
+      instagramId: instagramAccountId,
+      ...(job.data.accountConnectionId ? { id: job.data.accountConnectionId } : {}),
+    },
+    select: { id: true },
+  });
+  if (!account) return false;
+  const capture = await findFirstNameAwaiting(account.id, senderId);
+  if (!capture?.firstNameAwaiting) return false;
+
+  // Only their first reply counts, whatever it is.
+  const released = await prisma.emailCapture.updateMany({
+    where: { id: capture.id, firstNameAwaiting: true },
+    data: { firstNameAwaiting: false },
+  });
+  if (released.count === 0) return false;
+
+  const firstName = extractFirstName(messageText);
+  if (!firstName) return false;
+
+  // A campaign keyword sent as a DM ("FIGJAM") is a request, not a name.
+  const keywordCampaigns = await prisma.automation.findMany({
+    where: { instagramAccountId: account.id, dmTriggerEnabled: true, isActive: true },
+    select: { keywords: true, wholeWordMatch: true, matchAnyWord: true },
+  });
+  const isKeyword = keywordCampaigns.some(
+    (campaign) =>
+      !campaign.matchAnyWord &&
+      matchKeywords(messageText, campaign.keywords, campaign.wholeWordMatch).matched
+  );
+  if (isKeyword) return false;
+
+  await prisma.emailCapture.update({ where: { id: capture.id }, data: { firstName } });
+
+  const automation = await prisma.automation.findUnique({
+    where: { id: capture.automationId },
+    include: { instagramAccount: true },
+  });
+  if (!automation) return true;
+
+  await emailGateBestEffort("CRM sync", () => syncCaptureToCrm(capture.id, automation));
+
+  if (hasInstagramCredentials(automation.instagramAccount)) {
+    try {
+      const context = await createInstagramContext(
+        automation.instagramAccount,
+        `${job.id}:${automation.id}:firstname`
+      );
+      const thanks = (automation.firstNameThanksMessage?.trim() || DEFAULT_FIRST_NAME_THANKS)
+        .replace(/\{(?:name|prenom|prénom|first_name)\}/gi, firstName);
+      await sendDirectMessage({
+        context,
+        instagramAccountId: automation.instagramAccount.instagramId,
+        userId: senderId,
+        message: renderMessageWithoutLink({ message: thanks, commenterName: capture.igUsername }),
+      });
+    } catch (error) {
+      console.log("[DM Worker] Failed to send first-name thanks:", formatError(error));
+    }
+  }
   return true;
 }
 
@@ -1602,6 +1730,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
   const { instagramAccountId, messageId, messageText, senderId } = job.data;
 
   if (await handleEmailReply(job)) return;
+  if (await handleFirstNameReply(job)) return;
 
   const automations = await prisma.automation.findMany({
     where: {
@@ -1803,6 +1932,12 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
             if (knownEmail) await recordKnownEmail(automation, senderId, commenterName, knownEmail);
           });
         }
+        await askFirstNameAfterDelivery({
+          accessToken,
+          automation,
+          userId: senderId,
+          commenterName,
+        });
 
         // The link has been delivered, so the appreciation follow-up applies
         // here exactly as it does after a button tap. Not scheduled behind the

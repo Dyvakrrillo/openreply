@@ -17,6 +17,59 @@ export type EmailGateAutomation = {
   instagramAccount: { username: string };
 };
 
+/** The first name this person gave this Instagram account, through any campaign. */
+export async function findKnownFirstName(
+  instagramAccountId: string,
+  igUserId: string,
+): Promise<string | null> {
+  const capture = await prisma.emailCapture.findFirst({
+    where: { instagramAccountId, igUserId, firstName: { not: null } },
+    orderBy: { updatedAt: "desc" },
+    select: { firstName: true },
+  });
+  return capture?.firstName ?? null;
+}
+
+/**
+ * Claim the right to ask this person their first name, once per person and
+ * account: false when they already gave it, were already asked, or have no
+ * captured email on this campaign. The claim marks the capture as waiting for
+ * their next DM.
+ */
+export async function claimFirstNameQuestion(
+  automationId: string,
+  instagramAccountId: string,
+  igUserId: string,
+): Promise<boolean> {
+  const alreadyAsked = await prisma.emailCapture.findFirst({
+    where: {
+      instagramAccountId,
+      igUserId,
+      OR: [{ firstName: { not: null } }, { firstNameAskedAt: { not: null } }],
+    },
+    select: { id: true },
+  });
+  if (alreadyAsked) return false;
+  const claimed = await prisma.emailCapture.updateMany({
+    where: { automationId, igUserId, status: "CAPTURED", firstNameAskedAt: null },
+    data: { firstNameAskedAt: new Date(), firstNameAwaiting: true },
+  });
+  return claimed.count > 0;
+}
+
+/** The capture waiting for this person's first name, inside the messaging window. */
+export async function findFirstNameAwaiting(instagramAccountId: string, igUserId: string) {
+  return prisma.emailCapture.findFirst({
+    where: {
+      instagramAccountId,
+      igUserId,
+      firstNameAwaiting: true,
+      firstNameAskedAt: { gte: new Date(Date.now() - EMAIL_CAPTURE_WINDOW_MS) },
+    },
+    orderBy: { firstNameAskedAt: "desc" },
+  });
+}
+
 /**
  * An address this person already gave the same Instagram account, through any
  * campaign, or that was imported for their username (e.g. from a ManyChat
@@ -121,6 +174,8 @@ export async function syncCaptureToCrm(
   if (!automation.crmWebhookUrl) return;
   const capture = await prisma.emailCapture.findUnique({ where: { id: captureId } });
   if (!capture?.email) return;
+  const firstName =
+    capture.firstName ?? (await findKnownFirstName(capture.instagramAccountId, capture.igUserId));
   try {
     await pushContactToCrm(automation.crmWebhookUrl, {
       email: capture.email,
@@ -128,6 +183,7 @@ export async function syncCaptureToCrm(
       instagramUserId: capture.igUserId,
       sourceAccount: automation.instagramAccount.username,
       campaignName: automation.name,
+      firstName,
     });
     await prisma.emailCapture.update({
       where: { id: captureId },

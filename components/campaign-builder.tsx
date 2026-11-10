@@ -54,6 +54,9 @@ interface LoadedCampaign {
   emailPromptMessage?: string | null;
   emailInvalidMessage?: string | null;
   crmWebhookUrl?: string | null;
+  askFirstName?: boolean;
+  firstNamePromptMessage?: string | null;
+  firstNameThanksMessage?: string | null;
   publicReplyEnabled: boolean;
   publicReplyMessage: string | null;
   publicReplyMessages: string[];
@@ -192,6 +195,9 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   const [emailPromptMessage, setEmailPromptMessage] = useState("");
   const [emailInvalidMessage, setEmailInvalidMessage] = useState("");
   const [crmWebhookUrl, setCrmWebhookUrl] = useState("");
+  const [askFirstName, setAskFirstName] = useState(false);
+  const [firstNamePromptMessage, setFirstNamePromptMessage] = useState("");
+  const [firstNameThanksMessage, setFirstNameThanksMessage] = useState("");
 
   const [previewTab, setPreviewTab] = useState<PreviewTab>("dm");
 
@@ -305,6 +311,9 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         setEmailPromptMessage(c.emailPromptMessage ?? "");
         setEmailInvalidMessage(c.emailInvalidMessage ?? "");
         setCrmWebhookUrl(c.crmWebhookUrl ?? "");
+        setAskFirstName(c.askFirstName ?? false);
+        setFirstNamePromptMessage(c.firstNamePromptMessage ?? "");
+        setFirstNameThanksMessage(c.firstNameThanksMessage ?? "");
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
@@ -451,6 +460,9 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       emailPromptMessage: requireEmail ? emailPromptMessage.trim() : "",
       emailInvalidMessage: requireEmail ? emailInvalidMessage.trim() : "",
       crmWebhookUrl: requireEmail ? crmWebhookUrl.trim() : "",
+      askFirstName: requireEmail && askFirstName,
+      firstNamePromptMessage: requireEmail && askFirstName ? firstNamePromptMessage.trim() : "",
+      firstNameThanksMessage: requireEmail && askFirstName ? firstNameThanksMessage.trim() : "",
       isActive: activeValue,
     };
 
@@ -939,6 +951,36 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
                   maxLength={2000}
                 />
+                <div className="rounded-lg border border-border p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground">
+                      {t("then ask their first name")}
+                    </span>
+                    <Toggle on={askFirstName} onToggle={() => setAskFirstName(!askFirstName)} />
+                  </div>
+                  {askFirstName && (
+                    <div className="mt-3 space-y-2">
+                      <textarea
+                        value={firstNamePromptMessage}
+                        onChange={(e) => setFirstNamePromptMessage(e.target.value)}
+                        placeholder={t("By the way, what should I call you? Your first name is enough 😊")}
+                        rows={2}
+                        className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
+                        maxLength={1000}
+                      />
+                      <input
+                        value={firstNameThanksMessage}
+                        onChange={(e) => setFirstNameThanksMessage(e.target.value)}
+                        placeholder={t("Nice to meet you, {name}! 💛", { name: "{name}" })}
+                        className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
+                        maxLength={1000}
+                      />
+                      <p className="text-xs text-muted">
+                        {t("Asked once per person, right after the link. Their answer is sent to the CRM as first_name. {name} is replaced by the first name.", { name: "{name}" })}
+                      </p>
+                    </div>
+                  )}
+                </div>
                 <p className="text-xs text-muted">
                   {t("We ask for their email in the DM and send the link once they type it. Someone who already gave this account their email gets the link right away. Each address is posted to the CRM webhook, which picks the list and tags. Needs the messages webhook field.")}
                 </p>

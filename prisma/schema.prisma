@@ -225,6 +225,11 @@ model Automation {
   emailPromptMessage  String?
   emailInvalidMessage String?
   crmWebhookUrl       String?
+  // After the link is delivered to someone who just gave their email, ask for
+  // their first name once; the answer is sent to the CRM as first_name.
+  askFirstName           Boolean @default(false)
+  firstNamePromptMessage String?
+  firstNameThanksMessage String?
   publicReplyEnabled Boolean @default(false)
   publicReplyMessage String?
   publicReplyMessages String[] @default([])
@@ -411,6 +416,10 @@ model EmailCapture {
   capturedAt         DateTime?
   crmSyncedAt        DateTime?
   crmError           String?
+  firstName          String?
+  firstNameAskedAt   DateTime?
+  // True from the first-name question until their next DM.
+  firstNameAwaiting  Boolean  @default(false)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 

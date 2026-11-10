@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildCrmFormBody,
   extractEmail,
+  extractFirstName,
   isValidCrmWebhookUrl,
   pushContactToCrm,
 } from "../lib/email-capture";
@@ -75,5 +76,47 @@ describe("known contacts CSV", () => {
   it("normalizes profile URLs and handles", () => {
     expect(normalizeUsername("https://www.instagram.com/La_Prof/")).toBe("la_prof");
     expect(normalizeUsername("@x y")).toBeNull();
+  });
+});
+
+describe("extractFirstName", () => {
+  it.each([
+    ["julie", "Julie"],
+    ["Moi c'est julie 😊", "Julie"],
+    ["je m'appelle MARIE-ANNE", "Marie-Anne"],
+    ["Prénom : Chloé.", "Chloé"],
+    ["Anne Sophie", "Anne Sophie"],
+    ["my name is Sam!", "Sam"],
+  ])("reads %s as %s", (input, expected) => {
+    expect(extractFirstName(input)).toBe(expected);
+  });
+
+  it.each([
+    ["ok merci"],
+    ["toujours pas"],
+    ["je sais pas"],
+    ["merci !"],
+    ["c'est quoi le lien du document ?"],
+    ["jane@example.com"],
+    ["j'adore ton contenu tu es top vraiment"],
+    ["123"],
+    ["👍"],
+    [""],
+  ])("rejects %s", (input) => {
+    expect(extractFirstName(input)).toBeNull();
+  });
+});
+
+describe("buildCrmFormBody first name", () => {
+  it("sends first_name only when known", () => {
+    const base = {
+      email: "a@b.co",
+      instagramUsername: "ab",
+      instagramUserId: "1",
+      sourceAccount: "acct",
+      campaignName: "FIGJAM",
+    };
+    expect(buildCrmFormBody(base).has("first_name")).toBe(false);
+    expect(buildCrmFormBody({ ...base, firstName: "Julie" }).get("first_name")).toBe("Julie");
   });
 });
