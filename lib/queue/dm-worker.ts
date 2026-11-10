@@ -1896,10 +1896,20 @@ async function processJob(job: Job<DmQueueJob>): Promise<void> {
     // formatError() takes unknown; isDeliveryUnconfirmed() is a type guard on
     // Error subclasses, but keep using formatError() for a consistent message
     // format across every UnrecoverableError thrown from this worker.
-    if (isDeliveryUnconfirmed(error))
+    if (isDeliveryUnconfirmed(error) || isPermanentMetaRejection(error))
       throw new UnrecoverableError(formatError(error));
     throw error;
   }
+}
+
+// Meta refuses a private reply to some comments for good (sub=2534025: the
+// comment is not eligible, e.g. the person's message settings or a reply was
+// already sent). Retrying only repeats the same refusal and the same alert.
+const PERMANENT_META_SUBCODES = new Set([2534025]);
+
+export function isPermanentMetaRejection(error: unknown): boolean {
+  const subcode = (error as { subcode?: unknown } | null)?.subcode;
+  return typeof subcode === "number" && PERMANENT_META_SUBCODES.has(subcode);
 }
 
 async function recordWorkerFailure(
