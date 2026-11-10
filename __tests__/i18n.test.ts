@@ -5,10 +5,12 @@ import ru from "../lib/i18n/ru.json";
 import zhTW from "../lib/i18n/zh-TW.json";
 
 describe("interface translations", () => {
-  it("keeps English as the default for absent or unsupported preferences", () => {
-    for (const value of [undefined, null, "", "fr", "zh-CN", "../zh-TW", "pt", "pt-PT", "ru-RU"]) {
-      expect(resolveLocale(value)).toBe("en");
+  it("keeps French as the default for absent or unsupported preferences", () => {
+    for (const value of [undefined, null, "", "fr-FR", "zh-CN", "../zh-TW", "pt", "pt-PT", "ru-RU"]) {
+      expect(resolveLocale(value)).toBe("fr");
     }
+    expect(resolveLocale("en")).toBe("en");
+    expect(resolveLocale("fr")).toBe("fr");
     expect(resolveLocale("zh-TW")).toBe("zh-TW");
     expect(resolveLocale("pt-BR")).toBe("pt-BR");
     expect(resolveLocale("ru")).toBe("ru");
