@@ -602,12 +602,50 @@ export interface InstagramParticipant {
   username?: string;
 }
 
+export interface InstagramMessageAttachment {
+  generic_template?: { title?: string; subtitle?: string };
+  image_data?: unknown;
+  video_data?: unknown;
+  audio_data?: unknown;
+  file_url?: string;
+}
+
 export interface InstagramMessage {
   id: string;
   created_time?: string;
   message?: string;
+  attachments?: { data?: InstagramMessageAttachment[] };
+  shares?: { data?: unknown[] };
+  is_unsupported?: boolean;
   from?: InstagramParticipant;
   to?: { data: InstagramParticipant[] };
+}
+
+// Fields that carry what a message contains. Button and card messages the
+// automations send have no `message` text, only an attachment (or nothing).
+const MESSAGE_CONTENT_FIELDS = "message,attachments,shares,is_unsupported";
+
+/**
+ * Readable text for a message: its text, else what its attachment holds. An
+ * empty string means Meta returned nothing readable (e.g. a button message).
+ */
+export function describeMessage(message: InstagramMessage): string {
+  const text = message.message?.trim();
+  if (text) return message.message as string;
+  for (const attachment of message.attachments?.data ?? []) {
+    const template = attachment.generic_template;
+    const templateText = [template?.title, template?.subtitle]
+      .map((part) => part?.trim())
+      .filter(Boolean)
+      .join("\n");
+    if (templateText) return templateText;
+    if (attachment.image_data) return "📷";
+    if (attachment.video_data) return "🎥";
+    if (attachment.audio_data) return "🎤";
+    if (attachment.file_url) return "📎";
+  }
+  if (message.shares?.data?.length) return "🔗";
+  return "";
 }
 
 export interface InstagramConversation {
@@ -632,7 +670,7 @@ export async function getConversations(
   igUserId: string
 ): Promise<InstagramConversation[]> {
   const fields =
-    "participants,updated_time,messages.limit(1){message,from,created_time}";
+    `participants,updated_time,messages.limit(1){${MESSAGE_CONTENT_FIELDS},from,created_time}`;
   type Page = {
     data?: InstagramConversation[];
     paging?: { next?: string; cursors?: { after?: string } };
@@ -717,7 +755,7 @@ export async function getConversationMessages(
   conversationId: string
 ): Promise<InstagramMessage[]> {
   const url = new URL(`${graphBaseFor(accessToken)}/${conversationId}`);
-  url.searchParams.set("fields", "messages{id,created_time,from,to,message}");
+  url.searchParams.set("fields", `messages{id,created_time,from,to,${MESSAGE_CONTENT_FIELDS}}`);
   url.searchParams.set("access_token", accessToken);
 
   const response = await fetch(url.toString());

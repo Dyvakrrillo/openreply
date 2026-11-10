@@ -483,5 +483,6 @@
   "Importing…": "Импорт…",
   "Import contacts": "Импортировать контакты",
   "Import failed.": "Не удалось импортировать.",
-  "{saved} contacts saved, {skipped} lines skipped.": "Сохранено контактов: {saved}, пропущено строк: {skipped}."
+  "{saved} contacts saved, {skipped} lines skipped.": "Сохранено контактов: {saved}, пропущено строк: {skipped}.",
+  "Automated message with buttons": "Автоматическое сообщение с кнопками"
 }

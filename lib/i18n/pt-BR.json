@@ -483,5 +483,6 @@
   "Importing…": "Importando…",
   "Import contacts": "Importar contatos",
   "Import failed.": "Falha na importação.",
-  "{saved} contacts saved, {skipped} lines skipped.": "{saved} contatos salvos, {skipped} linhas ignoradas."
+  "{saved} contacts saved, {skipped} lines skipped.": "{saved} contatos salvos, {skipped} linhas ignoradas.",
+  "Automated message with buttons": "Mensagem automática com botões"
 }

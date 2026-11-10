@@ -483,5 +483,6 @@
   "Importing…": "匯入中…",
   "Import contacts": "匯入聯絡人",
   "Import failed.": "匯入失敗。",
-  "{saved} contacts saved, {skipped} lines skipped.": "已儲存 {saved} 位聯絡人，略過 {skipped} 行。"
+  "{saved} contacts saved, {skipped} lines skipped.": "已儲存 {saved} 位聯絡人，略過 {skipped} 行。",
+  "Automated message with buttons": "含按鈕的自動訊息"
 }

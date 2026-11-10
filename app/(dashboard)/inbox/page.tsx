@@ -320,7 +320,7 @@ export default function InboxPage() {
                     {c.lastMessage && (
                       <p className="mt-0.5 truncate text-xs text-muted">
                         {c.lastMessage.fromMe ? t("You: ") : ""}
-                        {c.lastMessage.text || t("(no text)")}
+                        {c.lastMessage.text || (c.lastMessage.fromMe ? t("Automated message with buttons") : t("(no text)"))}
                       </p>
                     )}
                   </button>
@@ -377,7 +377,7 @@ export default function InboxPage() {
                             : "bg-surface text-foreground border border-border"
                         }`}
                       >
-                        <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                        <p className="whitespace-pre-wrap break-words">{m.text || <em className="opacity-80">{m.fromMe ? t("Automated message with buttons") : t("(no text)")}</em>}</p>
                         <p
                           className={`mt-1 text-[10px] ${
                             m.fromMe ? "text-white/70" : "text-zinc-500"

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { describeMessage } from "@/lib/meta/client";
 import { getCurrentWorkspaceId } from "@/lib/auth";
 import { getWorkspaceInstagramAccount } from "@/lib/instagram-accounts";
 import {
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest, { params }: RouteProps) {
     const messages: ThreadMessage[] = raw
       .map((m) => ({
         id: m.id,
-        text: m.message ?? "",
+        text: describeMessage(m),
         fromMe: m.from?.id === account.instagramId,
         fromUsername: m.from?.username ?? null,
         createdTime: m.created_time ?? null,

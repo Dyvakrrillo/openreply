@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { describeMessage } from "@/lib/meta/client";
 import { getCurrentWorkspaceId } from "@/lib/auth";
 import { getWorkspaceInstagramAccount } from "@/lib/instagram-accounts";
 import {
@@ -69,7 +70,7 @@ export async function GET(request: NextRequest) {
         updatedTime: c.updated_time ?? null,
         lastMessage: last
           ? {
-              text: last.message ?? "",
+              text: describeMessage(last),
               fromMe: last.from?.id === account.instagramId,
               createdTime: last.created_time ?? null,
             }
