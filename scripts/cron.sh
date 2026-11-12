@@ -65,6 +65,10 @@ while true; do
     last_daily="$today"
     call refresh-tokens
     call snapshot-followers
+    # The weekly advice report: Mondays only (date +%u: 1 = Monday).
+    if [ "$(date -u '+%u')" = "1" ]; then
+      call weekly-advice
+    fi
   fi
 
   # Half a minute: short enough never to skip a slot, long enough to stay idle.

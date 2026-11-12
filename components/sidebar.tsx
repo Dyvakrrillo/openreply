@@ -18,6 +18,7 @@ const navItems = [
   { label: "Campaigns", href: "/campaigns" },
   { label: "Performance", href: "/performance" },
   { label: "Audience", href: "/audience" },
+  { label: "Advice", href: "/advice" },
   { label: "Contacts", href: "/contacts" },
   { label: "DM Logs", href: "/logs" },
   { label: "Settings", href: "/settings" },

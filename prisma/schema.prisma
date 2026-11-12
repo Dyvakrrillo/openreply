@@ -163,10 +163,14 @@ model InstagramAccount {
   linkClicks  LinkClick[]
   followerSnapshots FollowerSnapshot[]
   insightsSnapshots InsightsSnapshot[]
+  adviceRuns        AdviceRun[]
   emailCaptures EmailCapture[]
   knownContacts KnownContact[]
 
   @@index([workspaceId])
+  // The creator's own words about goal, offer and audience, given to the AI
+  // advisor so its advice follows their strategy.
+  strategyBrief String?
 }
 
 /// Daily follower total for one account. Instagram only retains ~30 days of
@@ -185,6 +189,31 @@ model InsightsSnapshot {
   instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
 
   @@unique([instagramAccountId, date])
+}
+
+enum AdviceStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+// One AI advice report. Written as PENDING, filled in by a background task.
+model AdviceRun {
+  id                 String       @id @default(cuid())
+  instagramAccountId String
+  status             AdviceStatus @default(PENDING)
+  locale             String       @default("fr")
+  payload            Json?
+  error              String?
+  model              String?
+  inputTokens        Int?
+  outputTokens       Int?
+  createdAt          DateTime     @default(now())
+  completedAt        DateTime?
+
+  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+
+  @@index([instagramAccountId, createdAt])
 }
 
 model FollowerSnapshot {
