@@ -482,6 +482,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           commentText,
           commentId,
           matchedKeyword: matchResult.matchedKeyword,
+          // Credit the organic post when the comment came from an ad.
+          mediaId: originalMediaId ?? mediaId,
           status: "FAILED",
           errorMessage: "No Instagram access token available",
         },
@@ -516,6 +518,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           commentText,
           commentId,
           matchedKeyword: matchResult.matchedKeyword,
+          // Credit the organic post when the comment came from an ad.
+          mediaId: originalMediaId ?? mediaId,
           status: "FAILED",
           errorMessage: "Failed to decrypt Instagram access token",
         },
@@ -535,6 +539,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         instagramAccountId: automation.instagramAccountId,
         commenterId, commenterName, commentText, commentId,
         matchedKeyword: matchResult.matchedKeyword,
+        // Credit the organic post when the comment came from an ad.
+        mediaId: originalMediaId ?? mediaId,
         status: "PENDING",
       },
       update: {},
@@ -621,6 +627,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         data: {
           status: "SKIPPED_DEDUP",
           matchedKeyword: matchResult.matchedKeyword,
+          // Credit the organic post when the comment came from an ad.
+          mediaId: originalMediaId ?? mediaId,
           errorMessage: `Another campaign (${privateReplyUsedBy.automation?.name ?? "unknown"}) already sent the one private reply Instagram allows for this comment`,
         },
       });
@@ -639,6 +647,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         data: {
           status: "SKIPPED_PLAN_LIMIT",
           matchedKeyword: matchResult.matchedKeyword,
+          // Credit the organic post when the comment came from an ad.
+          mediaId: originalMediaId ?? mediaId,
           errorMessage: `Monthly DM limit reached (${usage.limit})`,
         },
       });
@@ -685,6 +695,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           data: {
             status: "SKIPPED_RATE_LIMIT",
             matchedKeyword: matchResult.matchedKeyword,
+            // Credit the organic post when the comment came from an ad.
+            mediaId: originalMediaId ?? mediaId,
             errorMessage: "Hourly Instagram DM rate limit reached",
           },
         });
@@ -702,6 +714,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           data: {
             status: "PENDING",
             matchedKeyword: matchResult.matchedKeyword,
+            // Credit the organic post when the comment came from an ad.
+            mediaId: originalMediaId ?? mediaId,
             errorMessage: "Hourly rate limit hit; retry scheduled",
           },
         });

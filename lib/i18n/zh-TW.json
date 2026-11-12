@@ -519,7 +519,7 @@
   "Posts and what they brought": "Posts and what they brought",
   "Emails": "Emails",
   "(no caption)": "(no caption)",
-  "Campaigns not tied to one post": "Campaigns not tied to one post",
-  "These campaigns run on any post or on the next reel, so they cannot be credited to a single post.": "These campaigns run on any post or on the next reel, so they cannot be credited to a single post.",
-  "{people} people · {emails} emails · {clicks} clicks": "{people} people · {emails} emails · {clicks} clicks"
+  "{people} people · {emails} emails · {clicks} clicks": "{people} people · {emails} emails · {clicks} clicks",
+  "The post is not known for these people (older messages, or people who wrote to you directly).": "The post is not known for these people (older messages, or people who wrote to you directly).",
+  "Results without a known post": "Results without a known post"
 }

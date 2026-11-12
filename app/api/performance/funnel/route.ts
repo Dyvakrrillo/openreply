@@ -3,6 +3,7 @@ import { getCurrentWorkspaceId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
 import { getWorkspaceInstagramAccount } from "@/lib/instagram-accounts";
 import { CLICK_ROW_SELECT, countUniqueClicksBy } from "@/lib/tracking/analytics";
+import { hashRecipientId } from "@/lib/tracking/server";
 import type { PostFunnel } from "@/lib/performance/metrics";
 
 export const dynamic = "force-dynamic";
@@ -16,15 +17,25 @@ export interface UnassignedCampaign {
 }
 
 export interface FunnelResponse {
-  /** Funnel per Instagram media id, for campaigns attached to one post. */
+  /** Funnel per Instagram media id. */
   byPost: Record<string, PostFunnel>;
-  /** Campaigns on any post or the next reel: no single post to credit. */
+  /** What could not be credited to a post, per campaign. */
   unassigned: UnassignedCampaign[];
+  /** Comment-triggered DMs still without a known post (older ones). */
+  missingPost: number;
 }
 
-// What each campaign brought: people who got the DM, who gave an email, who
-// clicked. Database only, so it answers instantly next to the slow Instagram
-// insights calls.
+interface Target {
+  postId: string | null;
+  automationIds: Set<string>;
+  people: Set<string>;
+  emails: Set<string>;
+}
+
+// What each post brought: people who got the DM, who gave an email, who
+// clicked. A person is credited to the post they commented on (stored on the
+// DM log), falling back to the post their campaign is attached to. Database
+// only, so it answers instantly next to the slow Instagram insights calls.
 export async function GET(request: NextRequest) {
   const workspaceId = await getCurrentWorkspaceId();
   if (!workspaceId) {
@@ -45,12 +56,13 @@ export async function GET(request: NextRequest) {
     where: { workspaceId, instagramAccountId: account.id },
     select: { id: true, name: true, postId: true },
   });
+  const byId = new Map(automations.map((a) => [a.id, a]));
   const ids = automations.map((a) => a.id);
 
-  const [logs, captures, clicks] = await Promise.all([
+  const [logs, captures, clicks, missingPost] = await Promise.all([
     prisma.dmLog.findMany({
       where: { automationId: { in: ids }, status: "SENT" },
-      select: { automationId: true, commenterId: true },
+      select: { automationId: true, commenterId: true, mediaId: true },
     }),
     prisma.emailCapture.findMany({
       where: { automationId: { in: ids }, status: "CAPTURED" },
@@ -60,67 +72,94 @@ export async function GET(request: NextRequest) {
       where: { automationId: { in: ids } },
       select: CLICK_ROW_SELECT,
     }),
+    prisma.dmLog.count({
+      where: {
+        instagramAccountId: account.id,
+        status: "SENT",
+        mediaId: null,
+        // Comment-triggered only: DMs, button taps and email answers have no post.
+        commentText: { not: { startsWith: "(" } },
+        NOT: [{ commentId: { startsWith: "dm:" } }, { commentId: { startsWith: "email:" } }],
+        automation: { postId: null },
+      },
+    }),
   ]);
 
-  const peopleBy = new Map<string, Set<string>>();
+  const mediaByPerson = new Map<string, string>();
+  const hashToPerson = new Map<string, string>();
   for (const log of logs) {
-    const set = peopleBy.get(log.automationId) ?? new Set<string>();
-    set.add(log.commenterId);
-    peopleBy.set(log.automationId, set);
+    if (log.mediaId) mediaByPerson.set(`${log.automationId}:${log.commenterId}`, log.mediaId);
+    hashToPerson.set(`${log.automationId}:${hashRecipientId(log.commenterId)}`, log.commenterId);
   }
-  const emailsBy = new Map<string, Set<string>>();
+
+  const postOf = (automationId: string, personId: string | null): string | null =>
+    (personId ? mediaByPerson.get(`${automationId}:${personId}`) : null) ??
+    byId.get(automationId)?.postId ??
+    null;
+  const targetKey = (automationId: string, postId: string | null) =>
+    postId ?? `u:${automationId}`;
+
+  const targets = new Map<string, Target>();
+  const target = (automationId: string, postId: string | null): Target => {
+    const key = targetKey(automationId, postId);
+    let entry = targets.get(key);
+    if (!entry) {
+      entry = { postId, automationIds: new Set(), people: new Set(), emails: new Set() };
+      targets.set(key, entry);
+    }
+    entry.automationIds.add(automationId);
+    return entry;
+  };
+
+  for (const log of logs) {
+    target(log.automationId, log.mediaId ?? byId.get(log.automationId)?.postId ?? null).people.add(
+      log.commenterId
+    );
+  }
   for (const capture of captures) {
-    const set = emailsBy.get(capture.automationId) ?? new Set<string>();
-    set.add(capture.igUserId);
-    emailsBy.set(capture.automationId, set);
+    target(capture.automationId, postOf(capture.automationId, capture.igUserId)).emails.add(
+      capture.igUserId
+    );
   }
-  const clicksBy = countUniqueClicksBy(clicks, (click) => click.automationId);
+  const clicksBy = countUniqueClicksBy(clicks, (click) => {
+    const person = click.recipientHash
+      ? (hashToPerson.get(`${click.automationId}:${click.recipientHash}`) ?? null)
+      : null;
+    const key = targetKey(click.automationId, postOf(click.automationId, person));
+    target(click.automationId, postOf(click.automationId, person));
+    return key;
+  });
 
-  const byPost: Record<string, PostFunnel & { peopleSet: Set<string>; emailSet: Set<string> }> = {};
+  const byPost: Record<string, PostFunnel> = {};
   const unassigned: UnassignedCampaign[] = [];
-
-  for (const automation of automations) {
-    const people = peopleBy.get(automation.id) ?? new Set<string>();
-    const emails = emailsBy.get(automation.id) ?? new Set<string>();
-    const clickCount = clicksBy.get(automation.id) ?? 0;
-    if (!automation.postId) {
+  for (const [key, entry] of targets) {
+    const clickCount = clicksBy.get(key) ?? 0;
+    if (entry.postId) {
+      const existing = byPost[entry.postId] ?? { campaigns: [], people: 0, emails: 0, clicks: 0 };
+      for (const id of entry.automationIds) {
+        const name = byId.get(id)?.name;
+        if (name && !existing.campaigns.includes(name)) existing.campaigns.push(name);
+      }
+      existing.people = entry.people.size;
+      existing.emails = entry.emails.size;
+      existing.clicks += clickCount;
+      byPost[entry.postId] = existing;
+    } else {
+      const id = [...entry.automationIds][0];
       unassigned.push({
-        id: automation.id,
-        name: automation.name,
-        people: people.size,
-        emails: emails.size,
+        id,
+        name: byId.get(id)?.name ?? "",
+        people: entry.people.size,
+        emails: entry.emails.size,
         clicks: clickCount,
       });
-      continue;
     }
-    const entry = (byPost[automation.postId] ??= {
-      campaigns: [],
-      people: 0,
-      emails: 0,
-      clicks: 0,
-      peopleSet: new Set<string>(),
-      emailSet: new Set<string>(),
-    });
-    entry.campaigns.push(automation.name);
-    people.forEach((p) => entry.peopleSet.add(p));
-    emails.forEach((p) => entry.emailSet.add(p));
-    entry.clicks += clickCount;
-  }
-
-  // Several campaigns on one post count each person once.
-  const clean: Record<string, PostFunnel> = {};
-  for (const [postId, entry] of Object.entries(byPost)) {
-    clean[postId] = {
-      campaigns: entry.campaigns,
-      people: entry.peopleSet.size,
-      emails: entry.emailSet.size,
-      clicks: entry.clicks,
-    };
   }
 
   const data: FunnelResponse = {
-    byPost: clean,
+    byPost,
     unassigned: unassigned.filter((c) => c.people > 0 || c.emails > 0 || c.clicks > 0),
+    missingPost,
   };
   return NextResponse.json({ success: true, data });
 }

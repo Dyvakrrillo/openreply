@@ -264,6 +264,9 @@ model DmLog {
   commentText   String
   commentId     String
   matchedKeyword String?
+  // Instagram media the comment was left on (the organic post for ad comments).
+  // Null for DMs and for logs written before this column existed.
+  mediaId       String?
   status        DmStatus @default(PENDING)
   attempts      Int      @default(0)
   dmSentAt      DateTime?
@@ -285,6 +288,7 @@ model DmLog {
   instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
 
   @@unique([automationId, commentId])
+  @@index([instagramAccountId, mediaId])
   @@index([workspaceId])
   @@index([automationId])
   @@index([instagramAccountId])

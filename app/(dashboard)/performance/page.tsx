@@ -311,9 +311,9 @@ export default function PerformancePage() {
 
       {unassigned.length > 0 && (
         <div className="panel rounded p-4 sm:p-6">
-          <h2 className="text-sm font-semibold text-foreground mb-1">{t("Campaigns not tied to one post")}</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-1">{t("Results without a known post")}</h2>
           <p className="text-xs text-muted mb-4">
-            {t("These campaigns run on any post or on the next reel, so they cannot be credited to a single post.")}
+            {t("The post is not known for these people (older messages, or people who wrote to you directly).")}
           </p>
           <ul className="divide-y divide-border text-sm">
             {unassigned.map((c) => (

@@ -1784,6 +1784,16 @@ it("retains the public reply claim if sending succeeded but its log write failed
   expect(mockSendPrivateReply).toHaveBeenCalledTimes(1);
 });
 
+it("records the post a comment was left on, the organic one for ad comments", async () => {
+  mockPrisma.automation.findMany.mockResolvedValue([mockAutomation]);
+  const processor = getProcessor();
+  await processor(createMockJob());
+  await processor(createMockJob({ ...mockJobData, commentId: "comment_556", mediaId: "ad_media", originalMediaId: "post_media" }));
+  const created = mockPrisma.dmLog.upsert.mock.calls.map((call) => call[0].create);
+  expect(created.find((c: { commentId: string }) => c.commentId === "comment_555")).toMatchObject({ mediaId: "media_101" });
+  expect(created.find((c: { commentId: string }) => c.commentId === "comment_556")).toMatchObject({ mediaId: "post_media" });
+});
+
 describe("DM Worker — email gate", () => {
   const emailAutomation = {
     ...mockAutomation,

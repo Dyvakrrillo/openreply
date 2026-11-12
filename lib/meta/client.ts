@@ -893,6 +893,23 @@ export async function getMediaInsights(
   return result;
 }
 
+/**
+ * The media a comment was left on. Used to credit old DMs to their post: the
+ * webhook that triggered them carried it, but it was not stored at the time.
+ * Null when the comment was deleted or Instagram does not return it.
+ */
+export async function getCommentMediaId(
+  accessToken: string,
+  commentId: string
+): Promise<string | null> {
+  const url = new URL(`${graphBaseFor(accessToken)}/${commentId}`);
+  url.searchParams.set("fields", "media");
+  url.searchParams.set("access_token", accessToken);
+  const response = await fetch(url.toString());
+  const data = await handleResponse<{ media?: { id?: string } }>(response);
+  return data.media?.id ?? null;
+}
+
 /** One day of net follower change, as reported by account insights. */
 export interface FollowerCountPoint {
   /** ISO date (YYYY-MM-DD) the change is attributed to. */
