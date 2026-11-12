@@ -910,6 +910,87 @@ export async function getCommentMediaId(
   return data.media?.id ?? null;
 }
 
+export interface InsightBreakdownRow {
+  /** Dimension values joined with "/", e.g. "F", "25-34", "FR", "Paris, Île-de-France". */
+  label: string;
+  value: number;
+}
+
+/**
+ * An account-level `total_value` insight, optionally split by a breakdown
+ * (age, gender, country, city...). Demographic metrics take `period=lifetime`
+ * and a `timeframe`; counters take `period=day` and a since/until window.
+ */
+export async function getAccountTotalInsight(
+  accessToken: string,
+  instagramAccountId: string,
+  opts: {
+    metric: string;
+    period?: "day" | "lifetime";
+    breakdown?: string;
+    timeframe?: string;
+    sinceDaysAgo?: number;
+  }
+): Promise<{ total: number | null; results: InsightBreakdownRow[] }> {
+  const url = new URL(`${graphBaseFor(accessToken)}/${instagramAccountId}/insights`);
+  url.searchParams.set("metric", opts.metric);
+  url.searchParams.set("period", opts.period ?? "day");
+  url.searchParams.set("metric_type", "total_value");
+  if (opts.breakdown) url.searchParams.set("breakdown", opts.breakdown);
+  if (opts.timeframe) url.searchParams.set("timeframe", opts.timeframe);
+  if (opts.sinceDaysAgo) {
+    const until = Math.floor(Date.now() / 1000);
+    url.searchParams.set("since", String(until - opts.sinceDaysAgo * 86_400));
+    url.searchParams.set("until", String(until));
+  }
+  url.searchParams.set("access_token", accessToken);
+
+  const response = await fetch(url.toString());
+  const data = await handleResponse<{
+    data: Array<{
+      total_value?: {
+        value?: number;
+        breakdowns?: Array<{
+          results?: Array<{ dimension_values?: string[]; value?: number }>;
+        }>;
+      };
+    }>;
+  }>(response);
+
+  const totalValue = data.data?.[0]?.total_value;
+  const results = (totalValue?.breakdowns?.[0]?.results ?? []).map((r) => ({
+    label: (r.dimension_values ?? []).join(", "),
+    value: r.value ?? 0,
+  }));
+  return { total: typeof totalValue?.value === "number" ? totalValue.value : null, results };
+}
+
+/**
+ * How many followers were online, per hour of the day (0-23), averaged over the
+ * days Instagram returns. Not available under 100 followers.
+ */
+export async function getOnlineFollowersByHour(
+  accessToken: string,
+  instagramAccountId: string
+): Promise<{ hours: number[]; days: number } | null> {
+  const url = new URL(`${graphBaseFor(accessToken)}/${instagramAccountId}/insights`);
+  url.searchParams.set("metric", "online_followers");
+  url.searchParams.set("period", "lifetime");
+  url.searchParams.set("access_token", accessToken);
+
+  const response = await fetch(url.toString());
+  const data = await handleResponse<{
+    data: Array<{ values?: Array<{ value?: Record<string, number> }> }>;
+  }>(response);
+
+  const days = (data.data?.[0]?.values ?? []).filter((v) => v.value);
+  if (days.length === 0) return null;
+  const hours = Array.from({ length: 24 }, (_, hour) =>
+    Math.round(days.reduce((sum, d) => sum + (d.value?.[String(hour)] ?? 0), 0) / days.length)
+  );
+  return { hours, days: days.length };
+}
+
 /** One day of net follower change, as reported by account insights. */
 export interface FollowerCountPoint {
   /** ISO date (YYYY-MM-DD) the change is attributed to. */

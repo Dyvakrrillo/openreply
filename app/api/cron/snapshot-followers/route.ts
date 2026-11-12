@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { createInstagramContext } from "@/lib/instagram/provider";
 import { getUserInfo } from "@/lib/instagram/provider";
+import { fetchAudienceSnapshot, recordAudienceSnapshot } from "@/lib/performance/audience";
 import {
   backfillFollowerHistory,
   recordFollowerSnapshot,
@@ -78,6 +79,17 @@ export async function GET(request: NextRequest) {
 
       await recordFollowerSnapshot(account.id, info.followers_count);
       recorded += 1;
+
+      // Audience insights are best-effort: their failure never fails the run.
+      try {
+        const audience = await fetchAudienceSnapshot(token.accessToken, account.instagramId);
+        await recordAudienceSnapshot(account.id, audience);
+      } catch (err) {
+        console.warn(
+          "[Cron] Audience snapshot failed:",
+          err instanceof Error ? err.message : err
+        );
+      }
 
       // First time we see this account, try to recover the last 30 days.
       const existing = await prisma.followerSnapshot.count({

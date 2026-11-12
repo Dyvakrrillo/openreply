@@ -50,6 +50,20 @@ describe("performance metrics", () => {
     expect(overallRate([post({ saved: null, shares: null })], shareabilityNumerator)).toBeNull();
   });
 
+  it("uses the median so one viral post cannot carry a slot", () => {
+    const posts = [
+      post({ id: "a", timestamp: "2026-11-02T05:00:00+0000", reach: 500 }), // Mon 06:00
+      post({ id: "b", timestamp: "2026-11-09T05:00:00+0000", reach: 600 }),
+      post({ id: "c", timestamp: "2026-11-16T05:00:00+0000", reach: 100000 }),
+      post({ id: "d", timestamp: "2026-11-03T17:00:00+0000", reach: 3000 }), // Tue 18:00
+      post({ id: "e", timestamp: "2026-11-10T17:00:00+0000", reach: 4000 }),
+      post({ id: "f", timestamp: "2026-11-17T17:00:00+0000", reach: 3500 }),
+    ];
+    const { hours } = bestSlots(posts);
+    expect(hours[0]).toEqual({ key: 18, medianReach: 3500, posts: 3 });
+    expect(hours[1]).toEqual({ key: 6, medianReach: 600, posts: 3 });
+  });
+
   it("finds the best weekday and 3-hour band in Paris time, ignoring one-off slots", () => {
     const posts = [
       post({ id: "a", timestamp: "2026-11-02T17:30:00+0000", reach: 10000 }), // Mon 18:30
@@ -60,8 +74,8 @@ describe("performance metrics", () => {
     ];
     const { days, hours } = bestSlots(posts);
     expect(days.map((d) => d.key)).toEqual([0, 2]);
-    expect(days[0]).toEqual({ key: 0, avgReach: 8000, posts: 2 });
-    expect(hours[0]).toEqual({ key: 18, avgReach: 8000, posts: 2 });
+    expect(days[0]).toEqual({ key: 0, medianReach: 8000, posts: 2 });
+    expect(hours[0]).toEqual({ key: 18, medianReach: 8000, posts: 2 });
     expect(hours.map((h) => h.key)).toEqual([18, 6]);
   });
 });

@@ -162,6 +162,7 @@ model InstagramAccount {
   dmLogs      DmLog[]
   linkClicks  LinkClick[]
   followerSnapshots FollowerSnapshot[]
+  insightsSnapshots InsightsSnapshot[]
   emailCaptures EmailCapture[]
   knownContacts KnownContact[]
 
@@ -171,6 +172,21 @@ model InstagramAccount {
 /// Daily follower total for one account. Instagram only retains ~30 days of
 /// account insights, so history beyond that window exists only because we
 /// record it here. One row per account per day.
+// One daily copy of the account's audience insights (demographics, hours online,
+// 30-day account totals). Instagram only serves the current state or a short
+// window, so keeping a copy each day is the only way to see how it evolves.
+model InsightsSnapshot {
+  id                 String   @id @default(cuid())
+  instagramAccountId String
+  date               DateTime @db.Date
+  payload            Json
+  createdAt          DateTime @default(now())
+
+  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([instagramAccountId, date])
+}
+
 model FollowerSnapshot {
   id                 String   @id @default(cuid())
   instagramAccountId String

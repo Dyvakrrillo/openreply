@@ -68,8 +68,15 @@ export const shareabilityNumerator = (p: PerfPost) =>
 export interface Slot {
   /** Weekday (0 = Monday ... 6 = Sunday) or the first hour of a 3-hour band. */
   key: number;
-  avgReach: number;
+  /** Median reach of the posts in the slot: one viral post cannot carry it. */
+  medianReach: number;
   posts: number;
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
 }
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -95,15 +102,15 @@ function topSlots(groups: Map<number, number[]>, minPosts: number, limit: number
     .filter(([, reaches]) => reaches.length >= minPosts)
     .map(([key, reaches]) => ({
       key,
-      avgReach: Math.round(reaches.reduce((a, b) => a + b, 0) / reaches.length),
+      medianReach: median(reaches),
       posts: reaches.length,
     }))
-    .sort((a, b) => b.avgReach - a.avgReach)
+    .sort((a, b) => b.medianReach - a.medianReach)
     .slice(0, limit);
 }
 
 /**
- * Best weekdays and 3-hour bands to publish, from the average reach of the
+ * Best weekdays and 3-hour bands to publish, from the median reach of the
  * account's own posts. A slot needs at least `minPosts` posts to count, so one
  * lucky post cannot pose as a rule.
  */

@@ -216,8 +216,8 @@ export default function PerformancePage() {
                 <li key={slot.key} className="flex justify-between gap-3">
                   <span className="text-foreground capitalize">{weekdayLabel(slot.key)}</span>
                   <span className="text-muted">
-                    {t("{reach} reach on average ({count} posts)", {
-                      reach: formatNumber(slot.avgReach, locale),
+                    {t("{reach} median reach ({count} posts)", {
+                      reach: formatNumber(slot.medianReach, locale),
                       count: slot.posts,
                     })}
                   </span>
@@ -238,8 +238,8 @@ export default function PerformancePage() {
                     {slot.key}h – {slot.key + HOUR_BAND}h
                   </span>
                   <span className="text-muted">
-                    {t("{reach} reach on average ({count} posts)", {
-                      reach: formatNumber(slot.avgReach, locale),
+                    {t("{reach} median reach ({count} posts)", {
+                      reach: formatNumber(slot.medianReach, locale),
                       count: slot.posts,
                     })}
                   </span>
@@ -250,7 +250,7 @@ export default function PerformancePage() {
         </div>
       </div>
       <p className="-mt-4 text-xs text-muted">
-        {t("Based on the average reach of your own posts (Paris time). A day or time needs at least 2 posts to count.")}
+        {t("Based on the median reach of your own posts (Paris time), so one viral post does not skew it. A day or time needs at least 2 posts to count.")}
       </p>
 
       <div className="panel rounded p-4 sm:p-6">
