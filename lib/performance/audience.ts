@@ -80,10 +80,15 @@ export async function fetchAudienceSnapshot(
       demographic("age"),
       demographic("country"),
       demographic("city"),
-      getOnlineFollowersByHour(accessToken, instagramAccountId).catch((error) => {
-        errors.online_followers = shortError(error);
-        return null;
-      }),
+      getOnlineFollowersByHour(accessToken, instagramAccountId)
+        .then((result) => {
+          if (!result) errors.online_followers = "Instagram returned no hourly data";
+          return result;
+        })
+        .catch((error) => {
+          errors.online_followers = shortError(error);
+          return null;
+        }),
       counter("reach"),
       counter("views"),
       counter("accounts_engaged"),

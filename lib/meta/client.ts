@@ -988,6 +988,9 @@ export async function getOnlineFollowersByHour(
   const hours = Array.from({ length: 24 }, (_, hour) =>
     Math.round(days.reduce((sum, d) => sum + (d.value?.[String(hour)] ?? 0), 0) / days.length)
   );
+  // An all-zero answer means Instagram has no hourly data for this account,
+  // not that nobody was ever online: report it as missing.
+  if (hours.every((h) => h === 0)) return null;
   return { hours, days: days.length };
 }
 
