@@ -1,8 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-vi.mock("@/lib/db/client", () => ({ prisma: {} }));
-
-import { bestOnlineBands, withShares } from "@/lib/performance/audience";
+import { bestOnlineBands, withShares } from "@/lib/performance/audience-math";
 
 describe("audience helpers", () => {
   it("turns counts into shares of the total", () => {

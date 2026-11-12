@@ -14,7 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import AccountSelect from "@/components/account-select";
 import StatCard from "@/components/stat-card";
 import type { AudienceResponse } from "@/app/api/audience/route";
-import { bestOnlineBands, withShares } from "@/lib/performance/audience";
+import { bestOnlineBands, withShares } from "@/lib/performance/audience-math";
 import type { InsightBreakdownRow } from "@/lib/meta/client";
 
 function formatNumber(n: number | null, locale: Locale): string {
