@@ -35,6 +35,9 @@ interface Campaign {
   followUpEnabled: boolean;
   followUpMessage: string | null;
   followUpDelayMinutes: number | null;
+  clickReminderEnabled?: boolean;
+  clickReminderMessage?: string | null;
+  clickReminderDelayMinutes?: number | null;
   publicReplyEnabled: boolean;
   publicReplyMessage: string | null;
   publicReplyMessages: string[];
@@ -288,6 +291,15 @@ export default function CampaignDetailPage() {
               {campaign.followUpDelayMinutes && campaign.followUpDelayMinutes > 0
                 ? t("Sent {minutes} min after the link.", { minutes: campaign.followUpDelayMinutes })
                 : t("Sent right after the link.")}
+            </p>
+          </Summary>
+        )}
+
+        {campaign.clickReminderEnabled && campaign.clickReminderMessage && (
+          <Summary title={t("Then a reminder if they haven't clicked")}>
+            <FieldBox>{campaign.clickReminderMessage}</FieldBox>
+            <p className="text-xs text-muted">
+              {t("Sent {minutes} min after the link.", { minutes: campaign.clickReminderDelayMinutes ?? 60 })}
             </p>
           </Summary>
         )}

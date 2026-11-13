@@ -49,6 +49,10 @@ const createAutomationSchema = z
     // Minutes to wait before the follow-up. Capped at 24h so it stays inside
     // Instagram's messaging window.
     followUpDelayMinutes: z.number().int().min(0).max(1440).optional().default(0),
+    // Reminder for people who have not clicked the link. Same 24h cap.
+    clickReminderEnabled: z.boolean().optional().default(false),
+    clickReminderMessage: z.string().max(1000).optional().nullable(),
+    clickReminderDelayMinutes: z.number().int().min(5).max(1440).optional().default(60),
     requireEmail: z.boolean().optional().default(false),
     emailPromptMessage: z.string().max(1000).optional().nullable(),
     emailInvalidMessage: z.string().max(1000).optional().nullable(),
@@ -128,6 +132,9 @@ const updateAutomationSchema = z.object({
   followUpEnabled: z.boolean().optional(),
   followUpMessage: z.string().max(1000).optional().nullable(),
   followUpDelayMinutes: z.number().int().min(0).max(1440).optional(),
+  clickReminderEnabled: z.boolean().optional(),
+  clickReminderMessage: z.string().max(1000).optional().nullable(),
+  clickReminderDelayMinutes: z.number().int().min(5).max(1440).optional(),
   requireEmail: z.boolean().optional(),
   emailPromptMessage: z.string().max(1000).optional().nullable(),
   emailInvalidMessage: z.string().max(1000).optional().nullable(),
@@ -441,6 +448,11 @@ export async function POST(request: NextRequest) {
       followUpDelayMinutes: parsed.data.followUpEnabled
         ? parsed.data.followUpDelayMinutes
         : 0,
+      clickReminderEnabled: parsed.data.clickReminderEnabled,
+      clickReminderMessage: parsed.data.clickReminderEnabled
+        ? parsed.data.clickReminderMessage?.trim() || null
+        : null,
+      clickReminderDelayMinutes: parsed.data.clickReminderDelayMinutes,
       requireEmail: parsed.data.requireEmail,
       emailPromptMessage: parsed.data.requireEmail
         ? parsed.data.emailPromptMessage?.trim() || null
@@ -576,6 +588,12 @@ export async function PATCH(request: NextRequest) {
   if (automationData.followUpEnabled === false) {
     automationData.followUpMessage = null;
     automationData.followUpDelayMinutes = 0;
+  }
+  if (automationData.clickReminderEnabled === false) {
+    automationData.clickReminderMessage = null;
+  }
+  if (typeof automationData.clickReminderMessage === "string") {
+    automationData.clickReminderMessage = automationData.clickReminderMessage.trim() || null;
   }
   if (automationData.crmWebhookUrl !== undefined) {
     automationData.crmWebhookUrl = automationData.crmWebhookUrl?.trim() || null;

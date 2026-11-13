@@ -67,6 +67,16 @@ export interface ProcessFollowUpJob {
   commenterName?: string | null;
 }
 
+// Scheduled after the link is delivered. When it fires, it reminds the person
+// about the link only if they have not clicked it yet.
+export interface ProcessClickReminderJob {
+  accountConnectionId?: string;
+  instagramAccountId: string;
+  userId: string;
+  automationId: string;
+  commenterName?: string | null;
+}
+
 // An inbound DM from a user. Campaigns with `dmTriggerEnabled` whose keywords
 // match the text reply to the sender.
 export interface ProcessMessageJob {
@@ -81,10 +91,12 @@ export type DmQueueJob =
   | ProcessCommentJob
   | ProcessPostbackJob
   | ProcessFollowUpJob
+  | ProcessClickReminderJob
   | ProcessMessageJob;
 
 export const POSTBACK_JOB_NAME = "process-postback";
 export const FOLLOWUP_JOB_NAME = "process-followup";
+export const CLICK_REMINDER_JOB_NAME = "process-click-reminder";
 export const MESSAGE_JOB_NAME = "process-message";
 
 let dmQueue: Queue<DmQueueJob> | null = null;

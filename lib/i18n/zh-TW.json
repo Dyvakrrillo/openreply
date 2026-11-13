@@ -588,5 +588,10 @@
   "Critical": "Critical",
   "Attention": "Attention",
   "Good": "Good",
-  "Save": "Save"
+  "Save": "Save",
+  "a reminder if they haven't clicked the link": "若未點擊連結則傳送提醒",
+  "Psst, don't forget your link, it's right here 👇": "提醒一下，別忘了你的連結，就在這裡 👇",
+  "Only sent to people who haven't clicked yet, with the link button again. It needs an open conversation: follow condition, opening DM, email, or a DM keyword.": "只會傳給尚未點擊的人，並再次附上連結按鈕。需要已開啟的對話：追蹤條件、開場私訊、電子郵件或私訊關鍵字。",
+  "Add the reminder message, or turn the reminder off.": "請新增提醒訊息，或關閉提醒。",
+  "Then a reminder if they haven't clicked": "接著，若未點擊則傳送提醒"
 }

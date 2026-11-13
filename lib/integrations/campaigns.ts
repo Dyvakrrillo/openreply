@@ -26,7 +26,8 @@ export async function getCampaign(context: ServiceContext, id: string) {
       openingDmEnabled: true, openingDmMessage: true, openingDmButtonLabel: true,
       linkButtonLabel: true, requireFollow: true, followPromptMessage: true,
       followPromptButtonLabel: true, followUpEnabled: true, followUpMessage: true,
-      followUpDelayMinutes: true, publicReplyEnabled: true, publicReplyMessage: true,
+      followUpDelayMinutes: true, clickReminderEnabled: true, clickReminderMessage: true,
+      clickReminderDelayMinutes: true, publicReplyEnabled: true, publicReplyMessage: true,
       publicReplyMessages: true,
       trackedLinks: {
         where: { workspaceId: context.workspaceId }, orderBy: TRACKED_LINK_ORDER,

@@ -588,5 +588,10 @@
   "Critical": "Critical",
   "Attention": "Attention",
   "Good": "Good",
-  "Save": "Save"
+  "Save": "Save",
+  "a reminder if they haven't clicked the link": "um lembrete se não clicarem no link",
+  "Psst, don't forget your link, it's right here 👇": "Psiu, não esquece o seu link, está bem aqui 👇",
+  "Only sent to people who haven't clicked yet, with the link button again. It needs an open conversation: follow condition, opening DM, email, or a DM keyword.": "Enviado só para quem ainda não clicou, com o botão do link de novo. Precisa de uma conversa aberta: condição de seguir, DM de abertura, e-mail ou palavra-chave na DM.",
+  "Add the reminder message, or turn the reminder off.": "Adicione a mensagem do lembrete ou desative o lembrete.",
+  "Then a reminder if they haven't clicked": "Depois um lembrete se não clicarem"
 }

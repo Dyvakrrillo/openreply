@@ -263,6 +263,11 @@ model Automation {
   // Minutes to wait after the link is delivered before sending the follow-up.
   // 0 sends it right away.
   followUpDelayMinutes Int @default(0)
+  // Reminder sent only to people who have not clicked the DM link yet. Checked
+  // against LinkClick.recipientHash when it fires; skipped once they clicked.
+  clickReminderEnabled      Boolean @default(false)
+  clickReminderMessage      String?
+  clickReminderDelayMinutes Int     @default(60)
   // Email gate: ask for an email address in the DM before revealing the link.
   // The person answers by typing it; the captured address is then pushed to
   // the CRM webhook (e.g. a FluentCRM incoming webhook) and the link is sent.

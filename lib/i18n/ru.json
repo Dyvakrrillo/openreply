@@ -588,5 +588,10 @@
   "Critical": "Critical",
   "Attention": "Attention",
   "Good": "Good",
-  "Save": "Save"
+  "Save": "Save",
+  "a reminder if they haven't clicked the link": "напоминание, если не перешли по ссылке",
+  "Psst, don't forget your link, it's right here 👇": "Псс, не забудь свою ссылку, она здесь 👇",
+  "Only sent to people who haven't clicked yet, with the link button again. It needs an open conversation: follow condition, opening DM, email, or a DM keyword.": "Отправляется только тем, кто ещё не перешёл по ссылке, снова с кнопкой ссылки. Нужен открытый диалог: условие подписки, вступительное сообщение, e-mail или ключевое слово в директ.",
+  "Add the reminder message, or turn the reminder off.": "Добавь текст напоминания или отключи напоминание.",
+  "Then a reminder if they haven't clicked": "Затем напоминание, если не перешли"
 }

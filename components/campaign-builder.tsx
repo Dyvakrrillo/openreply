@@ -50,6 +50,9 @@ interface LoadedCampaign {
   followUpEnabled: boolean;
   followUpMessage: string | null;
   followUpDelayMinutes: number | null;
+  clickReminderEnabled?: boolean;
+  clickReminderMessage?: string | null;
+  clickReminderDelayMinutes?: number | null;
   requireEmail?: boolean;
   emailPromptMessage?: string | null;
   emailInvalidMessage?: string | null;
@@ -191,6 +194,9 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   const [followUpEnabled, setFollowUpEnabled] = useState(false);
   const [followUpMessage, setFollowUpMessage] = useState("");
   const [followUpDelayMinutes, setFollowUpDelayMinutes] = useState(0);
+  const [clickReminderEnabled, setClickReminderEnabled] = useState(false);
+  const [clickReminderMessage, setClickReminderMessage] = useState("");
+  const [clickReminderDelayMinutes, setClickReminderDelayMinutes] = useState(60);
   const [requireEmail, setRequireEmail] = useState(false);
   const [emailPromptMessage, setEmailPromptMessage] = useState("");
   const [emailInvalidMessage, setEmailInvalidMessage] = useState("");
@@ -307,6 +313,9 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         setFollowUpEnabled(c.followUpEnabled ?? false);
         setFollowUpMessage(c.followUpMessage ?? "");
         setFollowUpDelayMinutes(c.followUpDelayMinutes ?? 0);
+        setClickReminderEnabled(c.clickReminderEnabled ?? false);
+        setClickReminderMessage(c.clickReminderMessage ?? "");
+        setClickReminderDelayMinutes(c.clickReminderDelayMinutes ?? 60);
         setRequireEmail(c.requireEmail ?? false);
         setEmailPromptMessage(c.emailPromptMessage ?? "");
         setEmailInvalidMessage(c.emailInvalidMessage ?? "");
@@ -418,6 +427,8 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
     if (matchMode === "specific" && keywords.length === 0)
       return setError(t("Add at least one keyword, or switch to any word."));
     if (!dmMessage.trim()) return setError(t("Add the DM with the link."));
+    if (clickReminderEnabled && !clickReminderMessage.trim())
+      return setError(t("Add the reminder message, or turn the reminder off."));
     if (openingDmEnabled && (!openingDmMessage.trim() || !openingDmButtonLabel.trim()))
       return setError(t("Your opening DM needs a message and a button label."));
     if (requireEmail && crmWebhookUrl.trim() && !/^https:\/\/\S+$/.test(crmWebhookUrl.trim()))
@@ -456,6 +467,9 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       followUpEnabled,
       followUpMessage: followUpEnabled ? followUpMessage.trim() : "",
       followUpDelayMinutes: followUpEnabled ? followUpDelayMinutes : 0,
+      clickReminderEnabled,
+      clickReminderMessage: clickReminderEnabled ? clickReminderMessage.trim() : "",
+      clickReminderDelayMinutes,
       requireEmail,
       emailPromptMessage: requireEmail ? emailPromptMessage.trim() : "",
       emailInvalidMessage: requireEmail ? emailInvalidMessage.trim() : "",
@@ -1097,6 +1111,51 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   {followUpDelayMinutes > 0
                     ? t("Sent {minutes} min after they tap through.", { minutes: followUpDelayMinutes })
                     : t("Sent right after they tap through.")}
+                  {" {username}"} {t("personalizes it. Max 24 hours, to stay inside Instagram's messaging window.")}
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="mt-3 rounded-lg border border-border p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-foreground">
+                {t("a reminder if they haven't clicked the link")}
+              </span>
+              <Toggle
+                on={clickReminderEnabled}
+                onToggle={() => setClickReminderEnabled(!clickReminderEnabled)}
+              />
+            </div>
+            {clickReminderEnabled && (
+              <div className="mt-3 space-y-2">
+                <textarea
+                  value={clickReminderMessage}
+                  onChange={(e) => setClickReminderMessage(e.target.value)}
+                  placeholder={t("Psst, don't forget your link, it's right here 👇")}
+                  rows={3}
+                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
+                  maxLength={1000}
+                />
+                <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">
+                  <span className="text-xs text-muted">{t("Send it")}</span>
+                  <input
+                    type="number"
+                    min={5}
+                    max={1440}
+                    value={clickReminderDelayMinutes}
+                    onChange={(e) =>
+                      setClickReminderDelayMinutes(
+                        Math.max(5, Math.min(1440, Math.floor(Number(e.target.value) || 5)))
+                      )
+                    }
+                    className="w-20 rounded-lg border border-border bg-surface px-2 py-1 text-sm text-foreground focus:border-accent/40 focus:outline-none"
+                  />
+                  <span className="text-xs text-muted">
+                    {t("minutes after the link")}
+                  </span>
+                </div>
+                <p className="text-xs text-muted">
+                  {t("Only sent to people who haven't clicked yet, with the link button again. It needs an open conversation: follow condition, opening DM, email, or a DM keyword.")}
                   {" {username}"} {t("personalizes it. Max 24 hours, to stay inside Instagram's messaging window.")}
                 </p>
               </div>

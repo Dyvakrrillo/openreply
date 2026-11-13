@@ -588,5 +588,10 @@
   "Critical": "Critique",
   "Attention": "À surveiller",
   "Good": "Bien",
-  "Save": "Enregistrer"
+  "Save": "Enregistrer",
+  "a reminder if they haven't clicked the link": "une relance s'ils n'ont pas cliqué sur le lien",
+  "Psst, don't forget your link, it's right here 👇": "Psst, n'oublie pas ton lien, il est juste ici 👇",
+  "Only sent to people who haven't clicked yet, with the link button again. It needs an open conversation: follow condition, opening DM, email, or a DM keyword.": "Envoyée seulement à ceux qui n'ont pas encore cliqué, avec à nouveau le bouton du lien. Il faut une conversation ouverte : condition d'abonnement, message d'ouverture, e-mail ou mot-clé en MP.",
+  "Add the reminder message, or turn the reminder off.": "Ajoute le message de relance, ou désactive la relance.",
+  "Then a reminder if they haven't clicked": "Puis une relance s'ils n'ont pas cliqué"
 }

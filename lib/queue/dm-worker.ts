@@ -13,11 +13,13 @@ import {
   MESSAGE_JOB_NAME,
   POSTBACK_JOB_NAME,
   FOLLOWUP_JOB_NAME,
+  CLICK_REMINDER_JOB_NAME,
   type DmQueueJob,
   type ProcessCommentJob,
   type ProcessMessageJob,
   type ProcessPostbackJob,
   type ProcessFollowUpJob,
+  type ProcessClickReminderJob,
 } from "./client";
 import { prisma } from "@/lib/db/client";
 import {
@@ -1308,6 +1310,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       );
       return;
     }
+    await scheduleClickReminder(automation, userId, commenterName);
     // Optional appreciation follow-up: once the link has been delivered, send a
     // short thank-you. It is scheduled as its own delayed job so it can go out
     // some minutes later (followUpDelayMinutes) rather than immediately. The
@@ -1404,6 +1407,107 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       },
     });
     throw error;
+  }
+}
+
+/**
+ * Queue the "you haven't clicked yet" reminder after the link went out in an
+ * open conversation. Best-effort: a scheduling failure must not undo a
+ * delivered link. The deterministic job id keeps it to one reminder per person.
+ */
+async function scheduleClickReminder(
+  automation: {
+    id: string;
+    instagramAccountId: string;
+    clickReminderEnabled: boolean;
+    clickReminderMessage: string | null;
+    clickReminderDelayMinutes: number;
+    instagramAccount: { instagramId: string };
+  },
+  userId: string,
+  commenterName: string | null
+): Promise<void> {
+  if (!automation.clickReminderEnabled || !automation.clickReminderMessage?.trim()) return;
+  try {
+    await getDMQueue().add(
+      CLICK_REMINDER_JOB_NAME,
+      {
+        instagramAccountId: automation.instagramAccount.instagramId,
+        accountConnectionId: automation.instagramAccountId,
+        userId,
+        automationId: automation.id,
+        commenterName,
+      },
+      {
+        delay: Math.max(1, automation.clickReminderDelayMinutes) * 60_000,
+        jobId: `clickreminder_${automation.id}_${userId}`,
+      }
+    );
+  } catch (error) {
+    console.log("[DM Worker] Failed to schedule click reminder:", formatError(error));
+  }
+}
+
+/**
+ * Send the click reminder, but only to someone who has not opened any of the
+ * campaign's links. Clicks are matched on the per-recipient token carried by
+ * the DM links (LinkClick.recipientHash). Best-effort like the follow-up: a
+ * closed messaging window is logged, not retried.
+ */
+async function processClickReminder(job: Job<ProcessClickReminderJob>): Promise<void> {
+  const { instagramAccountId, userId, automationId, commenterName } = job.data;
+
+  const automation = await prisma.automation.findFirst({
+    where: { id: automationId, isActive: true, ...connectionScope(job.data) },
+    include: {
+      instagramAccount: true,
+      trackedLinks: {
+        select: { slug: true, label: true, destinationUrl: true },
+        orderBy: TRACKED_LINK_ORDER,
+      },
+    },
+  });
+
+  if (
+    !automation ||
+    !automation.clickReminderEnabled ||
+    !automation.clickReminderMessage?.trim() ||
+    // Without a tracked link there is no way to know whether they clicked.
+    automation.trackedLinks.length === 0 ||
+    automation.instagramAccount.instagramId !== instagramAccountId ||
+    !hasInstagramCredentials(automation.instagramAccount)
+  ) {
+    return;
+  }
+
+  const clicked = await prisma.linkClick.findFirst({
+    where: { automationId: automation.id, recipientHash: hashRecipientId(userId) },
+    select: { id: true },
+  });
+  if (clicked) return;
+
+  let accessToken: InstagramContext;
+  try {
+    accessToken = await createInstagramContext(
+      automation.instagramAccount,
+      `${job.id}:${automation.id}`
+    );
+  } catch {
+    return;
+  }
+
+  try {
+    // Same delivery as the link itself (button, inline fallback), with the
+    // reminder text in place of the original message.
+    await sendRevealDirectMessage({
+      accessToken,
+      automation: { ...automation, dmMessage: automation.clickReminderMessage },
+      userId,
+      commenterName: commenterName ?? null,
+      context: "click reminder",
+    });
+  } catch (error) {
+    console.log("[DM Worker] Failed to send click reminder:", formatError(error));
   }
 }
 
@@ -1647,6 +1751,7 @@ async function handleEmailReply(job: Job<ProcessMessageJob>): Promise<boolean> {
     update: { status: "SENT", dmSentAt: new Date(), errorMessage: null },
   });
 
+  await scheduleClickReminder(automation, senderId, commenterName);
   if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
     await getDMQueue().add(
       FOLLOWUP_JOB_NAME,
@@ -1953,6 +2058,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
           commenterName,
         });
 
+        await scheduleClickReminder(automation, senderId, commenterName);
         // The link has been delivered, so the appreciation follow-up applies
         // here exactly as it does after a button tap. Not scheduled behind the
         // follow prompt — no link went out yet in that branch.
@@ -2031,6 +2137,9 @@ async function dispatchJob(job: Job<DmQueueJob>): Promise<void> {
   }
   if (job.name === FOLLOWUP_JOB_NAME) {
     return processFollowUp(job as Job<ProcessFollowUpJob>);
+  }
+  if (job.name === CLICK_REMINDER_JOB_NAME) {
+    return processClickReminder(job as Job<ProcessClickReminderJob>);
   }
   if (job.name === MESSAGE_JOB_NAME) {
     return processMessage(job as Job<ProcessMessageJob>);

@@ -50,6 +50,9 @@ const {
     operationalEvent: {
       create: vi.fn(),
     },
+    linkClick: {
+      findFirst: vi.fn(),
+    },
   },
   mockSendPrivateReply: vi.fn(),
   mockSendPrivateReplyWithLinkButton: vi.fn(),
@@ -130,6 +133,7 @@ vi.mock("@/lib/queue/client", () => ({
   getRedisConnection: vi.fn(),
   POSTBACK_JOB_NAME: "process-postback",
   FOLLOWUP_JOB_NAME: "process-followup",
+  CLICK_REMINDER_JOB_NAME: "process-click-reminder",
   MESSAGE_JOB_NAME: "process-message",
 }));
 
@@ -1197,6 +1201,121 @@ describe("DM Worker — DM keyword trigger", () => {
         create: expect.objectContaining({ status: "FAILED" }),
       })
     );
+  });
+});
+
+describe("DM Worker — click reminder", () => {
+  const reminderAutomation = {
+    ...mockAutomation,
+    dmTriggerEnabled: true,
+    requireFollow: false,
+    followPromptMessage: null,
+    followPromptButtonLabel: null,
+    followUpEnabled: false,
+    followUpMessage: null,
+    followUpDelayMinutes: 0,
+    clickReminderEnabled: true,
+    clickReminderMessage: "Psst {username}, your link is still here",
+    clickReminderDelayMinutes: 90,
+    trackedLinks: [{ slug: "resource", label: null, destinationUrl: "https://example.com" }],
+  };
+
+  function createReminderJob() {
+    return {
+      name: "process-click-reminder",
+      data: {
+        instagramAccountId: "ig_456",
+        userId: "commenter_999",
+        automationId: "auto_789",
+        commenterName: "commenter_user",
+      },
+      id: "reminder_job_001",
+      attemptsMade: 0,
+    };
+  }
+
+  it("schedules one reminder per person after the link goes out", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([reminderAutomation]);
+    const processor = getProcessor();
+    await processor({
+      name: "process-message",
+      data: {
+        instagramAccountId: "ig_456",
+        messageId: "mid_abc",
+        messageText: "can I get the LINK?",
+        senderId: "commenter_999",
+      },
+      id: "message_job_001",
+      attemptsMade: 0,
+    });
+
+    expect(mockQueueAdd).toHaveBeenCalledWith(
+      "process-click-reminder",
+      expect.objectContaining({ userId: "commenter_999", automationId: "auto_789" }),
+      { delay: 90 * 60_000, jobId: "clickreminder_auto_789_commenter_999" }
+    );
+  });
+
+  it("does not schedule a reminder when it is off", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([
+      { ...reminderAutomation, clickReminderEnabled: false },
+    ]);
+    const processor = getProcessor();
+    await processor({
+      name: "process-message",
+      data: {
+        instagramAccountId: "ig_456",
+        messageId: "mid_abc",
+        messageText: "can I get the LINK?",
+        senderId: "commenter_999",
+      },
+      id: "message_job_001",
+      attemptsMade: 0,
+    });
+
+    expect(mockQueueAdd).not.toHaveBeenCalledWith(
+      "process-click-reminder",
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
+  it("re-sends the link with the reminder text to someone who has not clicked", async () => {
+    mockPrisma.automation.findFirst.mockResolvedValue(reminderAutomation);
+    mockPrisma.linkClick.findFirst.mockResolvedValue(null);
+
+    const processor = getProcessor();
+    await processor(createReminderJob());
+
+    expect(mockPrisma.linkClick.findFirst).toHaveBeenCalledWith({
+      where: { automationId: "auto_789", recipientHash: hashRecipientId("commenter_999") },
+      select: { id: true },
+    });
+    expect(mockSendDirectMessageWithLinkButton).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(mockSendDirectMessageWithLinkButton.mock.calls[0])).toContain(
+      "Psst commenter_user, your link is still here"
+    );
+  });
+
+  it("stays silent for someone who already clicked", async () => {
+    mockPrisma.automation.findFirst.mockResolvedValue(reminderAutomation);
+    mockPrisma.linkClick.findFirst.mockResolvedValue({ id: "click_1" });
+
+    const processor = getProcessor();
+    await processor(createReminderJob());
+
+    expect(mockSendDirectMessageWithLinkButton).not.toHaveBeenCalled();
+    expect(mockSendDirectMessage).not.toHaveBeenCalled();
+  });
+
+  it("skips campaigns without a tracked link, where clicks cannot be known", async () => {
+    mockPrisma.automation.findFirst.mockResolvedValue({ ...reminderAutomation, trackedLinks: [] });
+
+    const processor = getProcessor();
+    await processor(createReminderJob());
+
+    expect(mockPrisma.linkClick.findFirst).not.toHaveBeenCalled();
+    expect(mockSendDirectMessage).not.toHaveBeenCalled();
   });
 });
 
