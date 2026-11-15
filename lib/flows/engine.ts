@@ -34,7 +34,12 @@ import {
   EMAIL_CAPTURE_WINDOW_MS,
   MAX_INVALID_EMAIL_REPLIES,
 } from "@/lib/email-capture";
-import { findCapturedEmail, syncCaptureToCrm, type EmailGateAutomation } from "@/lib/queue/email-gate";
+import {
+  findCapturedEmail,
+  findKnownFirstName,
+  syncCaptureToCrm,
+  type EmailGateAutomation,
+} from "@/lib/queue/email-gate";
 import { parseFlow } from "./schema";
 import { getMessageDefaults } from "@/lib/message-defaults-server";
 import { flowClickTag } from "./links";
@@ -290,7 +295,7 @@ async function advance(env: Env, startId: string | undefined, skipDelayFor?: str
       return;
     }
 
-    const sends = step.type === "message" || step.type === "followGate" || step.type === "askFirstName";
+    const sends = step.type === "message" || step.type === "followGate";
     if (sends && !canSend(env)) {
       // Picked up by handleFlowText / handleFlowPostback once they act.
       await park(env, step.id, "window");
@@ -351,6 +356,17 @@ async function advance(env: Env, startId: string | undefined, skipDelayFor?: str
         return;
       }
       case "askFirstName": {
+        // Already known (given in any campaign, or added in Contacts): skip
+        // the question and its thank-you, like the form-based campaigns do.
+        const knownName = await findKnownFirstName(env.automation.instagramAccountId, env.userId, env.username);
+        if (knownName) {
+          stepId = step.next;
+          continue;
+        }
+        if (!canSend(env)) {
+          await park(env, step.id, "window");
+          return;
+        }
         await send(env, step.id, render(step.text, env), []);
         const seq = await park(env, step.id, "firstName");
         if (step.timeoutMinutes && step.timeoutNext) {

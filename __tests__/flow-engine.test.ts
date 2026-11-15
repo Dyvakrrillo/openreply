@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockPrisma, mockSend, mockFollow, mockQueueAdd, mockFindEmail, mockSyncCrm } = vi.hoisted(() => ({
+const { mockPrisma, mockSend, mockFollow, mockQueueAdd, mockFindEmail, mockSyncCrm, mockFindName } = vi.hoisted(() => ({
   mockPrisma: {
     flowRun: { upsert: vi.fn(), update: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
     flowEvent: { create: vi.fn(), findFirst: vi.fn() },
@@ -14,6 +14,7 @@ const { mockPrisma, mockSend, mockFollow, mockQueueAdd, mockFindEmail, mockSyncC
   mockQueueAdd: vi.fn(),
   mockFindEmail: vi.fn(),
   mockSyncCrm: vi.fn(),
+  mockFindName: vi.fn(),
 }));
 
 vi.mock("@/lib/db/client", () => ({ prisma: mockPrisma }));
@@ -28,6 +29,7 @@ vi.mock("@/lib/queue/client", () => ({
 }));
 vi.mock("@/lib/queue/email-gate", () => ({
   findCapturedEmail: mockFindEmail,
+  findKnownFirstName: mockFindName,
   syncCaptureToCrm: mockSyncCrm,
 }));
 
@@ -111,6 +113,7 @@ beforeEach(() => {
   mockPrisma.emailCapture.updateMany.mockResolvedValue({ count: 0 });
   mockSend.mockResolvedValue({ message_id: "m1" });
   mockFindEmail.mockResolvedValue(null);
+  mockFindName.mockResolvedValue(null);
   mockSyncCrm.mockResolvedValue(undefined);
 });
 
@@ -307,6 +310,30 @@ describe("flow engine", () => {
     mockPrisma.flowEvent.findFirst.mockResolvedValue({ id: "ev" });
     await processFlowJob({ instagramAccountId: "ig_biz", automationId: "auto_1", userId: "user_1", runId: "run_1", kind: "noClick", stepId: "link" });
     expect(mockSend).not.toHaveBeenCalled();
+  });
+});
+
+describe("flow first name", () => {
+  const nameFlow: Flow = {
+    version: 1,
+    steps: [
+      { id: "trigger", type: "trigger", position: p, next: "name" },
+      { id: "name", type: "askFirstName", position: p, text: "Ton prénom ?", thanksText: "Enchantée {name}", next: "bye" },
+      { id: "bye", type: "message", position: p, text: "À bientôt", buttons: [] },
+    ],
+  };
+
+  it("asks for the first name when it is not known", async () => {
+    await startFlow({ automation, flow: nameFlow, context, userId: "user_1", username: "marie" });
+    expect(mockSend.mock.calls.map((c) => c[0].text)).toEqual(["Ton prénom ?"]);
+    expect(lastParkData()).toMatchObject({ currentStepId: "name", waiting: "firstName" });
+  });
+
+  it("skips the question and its thank-you when the first name is known", async () => {
+    mockFindName.mockResolvedValue("Marie");
+    await startFlow({ automation, flow: nameFlow, context, userId: "user_1", username: "marie" });
+    expect(mockFindName).toHaveBeenCalledWith("acct_row", "user_1", "marie");
+    expect(mockSend.mock.calls.map((c) => c[0].text)).toEqual(["À bientôt"]);
   });
 });
 
