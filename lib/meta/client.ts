@@ -401,6 +401,45 @@ export async function getUserUsername(
  * A tappable web_url button in a DM button template. Instagram's button
  * template supports up to 3 buttons; titles are capped at 20 chars by Meta.
  */
+/** A button of a button template: opens a URL or sends a postback. */
+export type TemplateButton =
+  | { type: "web_url"; title: string; url: string }
+  | { type: "postback"; title: string; payload: string };
+
+/**
+ * Send a button template (up to 3 buttons, mixed URL and postback) as a
+ * private reply to a comment or as a direct message. Used by step flows.
+ */
+export async function sendButtonTemplate(
+  accessToken: string,
+  instagramAccountId: string,
+  recipient: { comment_id: string } | { id: string },
+  text: string,
+  buttons: TemplateButton[]
+): Promise<{ recipient_id: string; message_id: string }> {
+  const response = await fetchMessages(accessToken, instagramAccountId, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      recipient,
+      message: {
+        attachment: {
+          type: "template",
+          payload: {
+            template_type: "button",
+            text: text.slice(0, 640),
+            buttons: buttons.slice(0, 3).map((b) => ({ ...b, title: b.title.slice(0, 20) })),
+          },
+        },
+      },
+    }),
+  });
+  return handleResponse(response);
+}
+
 export interface LinkButton {
   title: string;
   url: string;

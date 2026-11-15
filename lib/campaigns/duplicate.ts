@@ -1,3 +1,4 @@
+import { Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/db/client";
 import { generateReportShareSlug } from "@/lib/reports/share";
 import { TRACKED_LINK_ORDER } from "@/lib/tracking/link-order";
@@ -65,6 +66,8 @@ export async function duplicateCampaign({
       name: buildDuplicateName(settings.name),
       isActive: false,
       reportShareSlug: generateReportShareSlug(),
+      // A JSON column takes Prisma.DbNull rather than a plain null.
+      flow: settings.flow === null ? Prisma.DbNull : settings.flow,
       trackedLinks: {
         // Numbered from the order just read, so the copy's buttons match
         // the original's even if the original's positions have gaps or ties.

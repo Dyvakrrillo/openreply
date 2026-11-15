@@ -53,6 +53,15 @@ const {
     linkClick: {
       findFirst: vi.fn(),
     },
+    flowRun: {
+      findFirst: vi.fn(),
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+      update: vi.fn(),
+    },
+    flowEvent: {
+      create: vi.fn(),
+    },
   },
   mockSendPrivateReply: vi.fn(),
   mockSendPrivateReplyWithLinkButton: vi.fn(),
@@ -134,6 +143,7 @@ vi.mock("@/lib/queue/client", () => ({
   POSTBACK_JOB_NAME: "process-postback",
   FOLLOWUP_JOB_NAME: "process-followup",
   CLICK_REMINDER_JOB_NAME: "process-click-reminder",
+  FLOW_JOB_NAME: "process-flow",
   MESSAGE_JOB_NAME: "process-message",
 }));
 
@@ -267,6 +277,8 @@ beforeEach(() => {
     workspaceId: "workspace_123",
   });
   mockPrisma.operationalEvent.create.mockResolvedValue({});
+  // No step flow in progress unless a test sets one up.
+  mockPrisma.flowRun.findFirst.mockResolvedValue(null);
   mockDecryptToken.mockReturnValue("decrypted_token");
   mockMatchKeywords.mockReturnValue({ matched: true, matchedKeyword: "LINK" });
   mockReserveWorkspaceDMSend.mockResolvedValue({

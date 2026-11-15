@@ -77,6 +77,22 @@ export interface ProcessClickReminderJob {
   commenterName?: string | null;
 }
 
+// A delayed step of a step flow (lib/flows/engine.ts): resume after a wait or
+// a typing pause, take the "no reply" path, or the "no click" path.
+export interface ProcessFlowJob {
+  accountConnectionId?: string;
+  instagramAccountId: string;
+  automationId: string;
+  userId: string;
+  runId: string;
+  kind: "resume" | "timeout" | "noClick";
+  stepId: string;
+  // The run's seq when this was scheduled; a run that moved on ignores it.
+  // Absent on "noClick", which runs alongside whatever came next.
+  seq?: number;
+  skipDelay?: boolean;
+}
+
 // An inbound DM from a user. Campaigns with `dmTriggerEnabled` whose keywords
 // match the text reply to the sender.
 export interface ProcessMessageJob {
@@ -92,11 +108,13 @@ export type DmQueueJob =
   | ProcessPostbackJob
   | ProcessFollowUpJob
   | ProcessClickReminderJob
+  | ProcessFlowJob
   | ProcessMessageJob;
 
 export const POSTBACK_JOB_NAME = "process-postback";
 export const FOLLOWUP_JOB_NAME = "process-followup";
 export const CLICK_REMINDER_JOB_NAME = "process-click-reminder";
+export const FLOW_JOB_NAME = "process-flow";
 export const MESSAGE_JOB_NAME = "process-message";
 
 let dmQueue: Queue<DmQueueJob> | null = null;

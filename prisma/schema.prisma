@@ -268,6 +268,14 @@ model Automation {
   clickReminderEnabled      Boolean @default(false)
   clickReminderMessage      String?
   clickReminderDelayMinutes Int     @default(60)
+  // Step-by-step version of the campaign, edited on the canvas (lib/flows).
+  // Null until it is first saved from the canvas. The form fields above are
+  // never rewritten from it, so a campaign can always go back to them.
+  flow        Json?
+  // Whether the worker runs `flow` instead of the form fields. Off until the
+  // step engine ships, so saving a flow never changes what a campaign sends.
+  flowEnabled Boolean @default(false)
+  flowSavedAt DateTime?
   // Email gate: ask for an email address in the DM before revealing the link.
   // The person answers by typing it; the captured address is then pushed to
   // the CRM webhook (e.g. a FluentCRM incoming webhook) and the link is sent.
@@ -562,4 +570,48 @@ model ZernioConnection {
 model PostbackDelivery {
   id String @id
   createdAt DateTime @default(now())
+}
+
+// Where one person is in a campaign's step flow (lib/flows/engine.ts). One
+// row per person and campaign: triggering the campaign again restarts it.
+model FlowRun {
+  id                 String   @id @default(cuid())
+  workspaceId        String
+  automationId       String
+  instagramAccountId String
+  igUserId           String
+  igUsername         String?
+  // The step the run is parked on, and what it waits for there:
+  // "button" (a tap), "email" / "firstName" (a typed reply), "timer" (a wait),
+  // "window" (any message from them, after a comment's single private reply).
+  currentStepId      String?
+  waiting            String?
+  // Bumped on every move. Delayed jobs carry the value they were scheduled
+  // with and do nothing if the run has moved on since.
+  seq                Int      @default(0)
+  status             String   @default("ACTIVE") // ACTIVE | DONE | FAILED
+  invalidReplies     Int      @default(0)
+  lastActionAt       DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([automationId, igUserId])
+  @@index([instagramAccountId, igUserId, status])
+  @@index([workspaceId])
+}
+
+// One line per thing that happened on a step, for the per-card stats.
+model FlowEvent {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  automationId String
+  stepId       String
+  // "sent" | "button" (with buttonId) | "reply" | "failed"
+  kind         String
+  buttonId     String?
+  igUserId     String
+  createdAt    DateTime @default(now())
+
+  @@index([automationId, stepId])
+  @@index([workspaceId])
 }

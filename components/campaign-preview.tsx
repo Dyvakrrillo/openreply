@@ -116,7 +116,7 @@ function renderMessage(text: string, hasLink: boolean, linkUrl: string | undefin
   );
 }
 
-function Avatar({
+export function Avatar({
   url,
   size = 28,
 }: {
@@ -139,7 +139,7 @@ function Avatar({
   );
 }
 
-function StatusBar() {
+export function StatusBar() {
   return (
     <div className="flex items-center justify-between px-6 pt-2.5 text-[11px] font-semibold text-white">
       <span>12:13</span>
@@ -152,7 +152,7 @@ function StatusBar() {
   );
 }
 
-function Phone({ children }: { children: React.ReactNode }) {
+export function Phone({ children }: { children: React.ReactNode }) {
   const btn = "absolute w-[3px] rounded-sm bg-gradient-to-r from-zinc-500 to-zinc-700";
   return (
     // max-w-full so the fixed 300px frame cannot overflow a narrow screen

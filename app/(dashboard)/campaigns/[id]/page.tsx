@@ -318,6 +318,12 @@ export default function CampaignDetailPage() {
           </div>
           <div className="flex items-center gap-2">
             <Link
+              href={`/campaigns/${campaign.id}/flow`}
+              className="rounded border border-accent/40 px-3 py-1.5 text-sm text-accent hover:bg-accent/10"
+            >
+              {t("Steps canvas")}
+            </Link>
+            <Link
               href={`/campaigns/${campaign.id}/edit`}
               className="rounded border border-border px-3 py-1.5 text-sm text-muted hover:text-foreground"
             >

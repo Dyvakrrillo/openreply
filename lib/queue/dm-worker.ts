@@ -14,12 +14,14 @@ import {
   POSTBACK_JOB_NAME,
   FOLLOWUP_JOB_NAME,
   CLICK_REMINDER_JOB_NAME,
+  FLOW_JOB_NAME,
   type DmQueueJob,
   type ProcessCommentJob,
   type ProcessMessageJob,
   type ProcessPostbackJob,
   type ProcessFollowUpJob,
   type ProcessClickReminderJob,
+  type ProcessFlowJob,
 } from "./client";
 import { prisma } from "@/lib/db/client";
 import {
@@ -55,6 +57,14 @@ import {
 } from "@/lib/tracking/message";
 import { TRACKED_LINK_ORDER } from "@/lib/tracking/link-order";
 import { hashRecipientId } from "@/lib/tracking/server";
+import {
+  handleFlowPostback,
+  handleFlowText,
+  parseFlowPayload,
+  processFlowJob,
+  readEnabledFlow,
+  startFlow,
+} from "@/lib/flows/engine";
 
 import { ZernioApiError } from "@/lib/zernio/client";
 import {
@@ -741,7 +751,11 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     // With an opening DM, the private reply is a button message; tapping it
     // fires a postback that delivers the reveal (see processPostback). Without
     // one, we send the reveal text directly as today.
+    // A campaign switched to its step flow runs the canvas instead of the
+    // form settings below (lib/flows/engine.ts).
+    const flow = readEnabledFlow(automation);
     const useOpeningDm =
+      !flow &&
       automation.openingDmEnabled &&
       Boolean(automation.openingDmMessage) &&
       Boolean(automation.openingDmButtonLabel);
@@ -756,7 +770,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     // yet. Someone who already gave this account their email skips it.
     let sendEmailPrompt = false;
     let knownEmail: string | null = null;
-    if (automation.requireEmail && !useOpeningDm) {
+    if (!flow && automation.requireEmail && !useOpeningDm) {
       knownEmail = await findCapturedEmail(
         automation.instagramAccountId,
         commenterId,
@@ -769,7 +783,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     }
 
     let sendFollowPrompt = false;
-    if (automation.requireFollow && !useOpeningDm && !sendEmailPrompt) {
+    if (!flow && automation.requireFollow && !useOpeningDm && !sendEmailPrompt) {
       const alreadyFollows = await getUserFollowStatus({
         context: accessToken,
         recipientId: commenterId,
@@ -795,7 +809,17 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     }
     let delivered = false;
     try {
-      if (useOpeningDm) {
+      if (flow) {
+        await startFlow({
+          automation,
+          flow,
+          context: accessToken,
+          userId: commenterId,
+          username: commenterName ?? null,
+          comment: { commentId, postId: mediaId },
+          accountConnectionId: job.data.accountConnectionId,
+        });
+      } else if (useOpeningDm) {
         const openingText = renderMessageWithTracking({
           message: automation.openingDmMessage as string,
           commenterName,
@@ -1043,8 +1067,63 @@ async function sendFollowRecheckAck({
  * The postback payload is `reveal:<automationId>`; the sender is the user's
  * IGSID (same id as their comment author id), which we DM directly.
  */
+async function processFlowPostback(
+  job: Job<ProcessPostbackJob>,
+  flowPayload: NonNullable<ReturnType<typeof parseFlowPayload>>
+): Promise<void> {
+  const { instagramAccountId, userId } = job.data;
+  const automation = await prisma.automation.findFirst({
+    where: { id: flowPayload.automationId, isActive: true, flowEnabled: true, ...connectionScope(job.data) },
+    include: {
+      instagramAccount: true,
+      trackedLinks: { select: { slug: true, destinationUrl: true }, orderBy: TRACKED_LINK_ORDER },
+    },
+  });
+  if (
+    !automation ||
+    automation.instagramAccount.instagramId !== instagramAccountId ||
+    !hasInstagramCredentials(automation.instagramAccount)
+  ) {
+    return;
+  }
+  // Instagram re-delivers webhooks: handle each tap (message id) once.
+  if (job.data.mid) {
+    const fresh = await prisma.postbackDelivery
+      .create({ data: { id: `flow:${automation.id}:${job.data.mid}` } })
+      .then(() => true)
+      .catch(() => false);
+    if (!fresh) return;
+  }
+  let context: InstagramContext;
+  try {
+    context = await createInstagramContext(automation.instagramAccount, `${job.id}:${automation.id}`);
+  } catch {
+    return;
+  }
+  const username = await resolveRecipientName({
+    context,
+    workspaceId: automation.workspaceId,
+    recipientId: userId,
+  });
+  await handleFlowPostback({
+    automation,
+    context,
+    userId,
+    username,
+    payload: flowPayload,
+    accountConnectionId: job.data.accountConnectionId,
+  });
+}
+
 async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   const { instagramAccountId, userId, payload, fallback } = job.data;
+
+  // Taps on step-flow buttons. A read fallback (no tap) never moves a flow.
+  const flowPayload = parseFlowPayload(payload);
+  if (flowPayload) {
+    if (fallback) return;
+    return processFlowPostback(job, flowPayload);
+  }
 
   const isFollowCheck = payload.startsWith("followcheck:");
   if (!isFollowCheck && !payload.startsWith("reveal:")) return;
@@ -1849,6 +1928,17 @@ async function handleFirstNameReply(job: Job<ProcessMessageJob>): Promise<boolea
 async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
   const { instagramAccountId, messageId, messageText, senderId } = job.data;
 
+  // A step flow waiting for this person's reply (email, first name) or for
+  // the conversation to open takes the message first.
+  if (
+    await handleFlowText({
+      instagramAccountId,
+      senderId,
+      text: messageText,
+      accountConnectionId: job.data.accountConnectionId,
+    })
+  )
+    return;
   if (await handleEmailReply(job)) return;
   if (await handleFirstNameReply(job)) return;
 
@@ -1975,14 +2065,15 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     // postback path's fail-open one. Fail-open is only safe after a tap, where
     // the user has already claimed to follow; here it would hand the link to
     // anyone whose status the API happens not to resolve.
-    // Email first, then follow (see processComment).
-    const knownEmail = automation.requireEmail
+    // Email first, then follow (see processComment). A step flow does its own.
+    const dmFlow = readEnabledFlow(automation);
+    const knownEmail = !dmFlow && automation.requireEmail
       ? await findCapturedEmail(automation.instagramAccountId, senderId, commenterName)
       : null;
-    const sendEmailPrompt = automation.requireEmail && !knownEmail;
+    const sendEmailPrompt = !dmFlow && automation.requireEmail && !knownEmail;
 
     let sendFollowPrompt = false;
-    if (automation.requireFollow && !sendEmailPrompt) {
+    if (!dmFlow && automation.requireFollow && !sendEmailPrompt) {
       const follows = await getUserFollowStatus({
         context: accessToken,
         recipientId: senderId,
@@ -2016,7 +2107,16 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     }
 
     try {
-      if (sendEmailPrompt) {
+      if (dmFlow) {
+        await startFlow({
+          automation,
+          flow: dmFlow,
+          context: accessToken,
+          userId: senderId,
+          username: commenterName,
+          accountConnectionId: job.data.accountConnectionId,
+        });
+      } else if (sendEmailPrompt) {
         await markEmailAwaiting(automation, senderId, commenterName);
         await sendDirectMessage({
           context: accessToken,
@@ -2141,6 +2241,9 @@ async function dispatchJob(job: Job<DmQueueJob>): Promise<void> {
   }
   if (job.name === CLICK_REMINDER_JOB_NAME) {
     return processClickReminder(job as Job<ProcessClickReminderJob>);
+  }
+  if (job.name === FLOW_JOB_NAME) {
+    return processFlowJob((job as Job<ProcessFlowJob>).data);
   }
   if (job.name === MESSAGE_JOB_NAME) {
     return processMessage(job as Job<ProcessMessageJob>);

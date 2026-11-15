@@ -245,6 +245,57 @@ export async function sendDirectMessageWithLinkButton({
   });
 }
 
+/**
+ * Send text with up to 3 mixed buttons (URL or postback), either as the
+ * private reply to a comment (`commentId`) or as a direct message (`userId`).
+ * Without buttons it is a plain text message.
+ */
+export async function sendFlowMessage({
+  context,
+  instagramAccountId,
+  commentId,
+  postId,
+  userId,
+  text,
+  buttons,
+}: {
+  context: InstagramContext;
+  instagramAccountId: string;
+  commentId?: string;
+  postId?: string;
+  userId?: string;
+  text: string;
+  buttons: Button[];
+}) {
+  if (!commentId && !userId) throw new Error("sendFlowMessage needs a commentId or a userId");
+  if (buttons.length === 0) {
+    if (commentId)
+      return sendPrivateReply({ context, instagramAccountId, commentId, message: text, postId });
+    return sendDirectMessage({ context, instagramAccountId, userId: userId as string, message: text });
+  }
+  const capped = buttons.slice(0, 3).map((b) => ({ ...b, title: b.title.slice(0, 20) }));
+  if (context.provider === "META")
+    return meta.sendButtonTemplate(
+      context.accessToken,
+      instagramAccountId,
+      commentId ? { comment_id: commentId } : { id: userId as string },
+      text,
+      capped.map((b) =>
+        b.type === "url"
+          ? { type: "web_url" as const, title: b.title, url: b.url }
+          : { type: "postback" as const, title: b.title, payload: b.payload }
+      )
+    );
+  return sendZernioMessage({
+    context,
+    ...(commentId ? { commentId, postId } : { recipientId: userId }),
+    text,
+    buttons: capped,
+  });
+}
+
+export type FlowSendButton = Button;
+
 export async function sendCommentReply({
   context,
   commentId,

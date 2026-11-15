@@ -51,6 +51,7 @@ interface LoadedCampaign {
   followUpMessage: string | null;
   followUpDelayMinutes: number | null;
   clickReminderEnabled?: boolean;
+  flowEnabled?: boolean;
   clickReminderMessage?: string | null;
   clickReminderDelayMinutes?: number | null;
   requireEmail?: boolean;
@@ -195,6 +196,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   const [followUpMessage, setFollowUpMessage] = useState("");
   const [followUpDelayMinutes, setFollowUpDelayMinutes] = useState(0);
   const [clickReminderEnabled, setClickReminderEnabled] = useState(false);
+  const [flowEnabled, setFlowEnabled] = useState(false);
   const [clickReminderMessage, setClickReminderMessage] = useState("");
   const [clickReminderDelayMinutes, setClickReminderDelayMinutes] = useState(60);
   const [requireEmail, setRequireEmail] = useState(false);
@@ -314,6 +316,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         setFollowUpMessage(c.followUpMessage ?? "");
         setFollowUpDelayMinutes(c.followUpDelayMinutes ?? 0);
         setClickReminderEnabled(c.clickReminderEnabled ?? false);
+        setFlowEnabled(c.flowEnabled ?? false);
         setClickReminderMessage(c.clickReminderMessage ?? "");
         setClickReminderDelayMinutes(c.clickReminderDelayMinutes ?? 60);
         setRequireEmail(c.requireEmail ?? false);
@@ -602,6 +605,14 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
 
   return (
     <div className="space-y-6">
+      {flowEnabled && campaignId && (
+        <div className="rounded border border-success/30 bg-success/10 px-4 py-3 text-sm text-foreground">
+          {t("This campaign runs on its steps: its messages are edited in the steps canvas. The trigger (posts, keywords, public reply) is still set here.")}{" "}
+          <a href={`/campaigns/${campaignId}/flow`} className="font-medium text-accent underline">
+            {t("Open the canvas")}
+          </a>
+        </div>
+      )}
       {importQueue && (
         <div className="rounded border border-accent/30 bg-accent/5 px-4 py-3 text-sm">
           <span className="font-medium text-foreground">
