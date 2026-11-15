@@ -727,5 +727,6 @@
   "Reset": "重設",
   "Only owners and admins can change default messages": "只有擁有者與管理員可以變更預設訊息",
   "The link already goes out as a button, so {link} is not needed in the text.": "連結已經以按鈕傳送，文字中不需要 {link}。",
-  "Remove {link}": "移除 {link}"
+  "Remove {link}": "移除 {link}",
+  "{name} shows their first name when known.": "{name} 會顯示對方的名字（若已知）。"
 }

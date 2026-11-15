@@ -26,7 +26,7 @@ import {
   type FlowSendButton,
   type InstagramContext,
 } from "@/lib/instagram/provider";
-import { buildTrackedUrl, renderMessageWithoutLink } from "@/lib/tracking/message";
+import { buildTrackedUrl, personalizeFirstName, renderMessageWithoutLink } from "@/lib/tracking/message";
 import { hashRecipientId } from "@/lib/tracking/server";
 import {
   extractEmail,
@@ -80,6 +80,8 @@ type Env = {
   /** Whether direct messages can be sent (false right after a comment). */
   windowOpen: boolean;
   sentAny: boolean;
+  /** Known first name for {name}; null drops the token. */
+  firstName?: string | null;
   /** Canvas link buttons' own tracked slugs, by button id (loaded once). */
   flowLinks?: Map<string, string>;
 };
@@ -96,12 +98,10 @@ function stepById(flow: Flow, id: string | undefined): FlowStep | undefined {
   return id ? flow.steps.find((s) => s.id === id) : undefined;
 }
 
-function render(text: string, env: Env, extra: Record<string, string> = {}) {
-  let out = renderMessageWithoutLink({ message: text, commenterName: env.username });
-  for (const [key, value] of Object.entries(extra)) {
-    out = out.replace(new RegExp(`\\{${key}\\}`, "gi"), value);
-  }
-  return out.trim();
+function render(text: string, env: Env, extra: { name?: string; email?: string } = {}) {
+  let out = personalizeFirstName(text, extra.name ?? env.firstName);
+  if (extra.email) out = out.replace(/\{email\}/gi, extra.email);
+  return renderMessageWithoutLink({ message: out, commenterName: env.username }).trim();
 }
 
 function postback(automationId: string, stepId: string, action: string) {
@@ -445,6 +445,7 @@ export async function startFlow({
     windowOpen: !comment,
     sentAny: false,
   };
+  env.firstName = await findKnownFirstName(automation.instagramAccountId, userId, username);
   await prisma.flowRun.update({ where: { id: run.id }, data: { invalidReplies: 0 } });
   const trigger = flow.steps.find((s) => s.type === "trigger");
   await advance(env, trigger?.next);
@@ -481,6 +482,7 @@ export async function handleFlowPostback({
   if (!step) return;
   const run = await loadRun(automation, userId, username);
   const env: Env = { automation, flow, context, userId, username, accountConnectionId, run, windowOpen: true, sentAny: false };
+  env.firstName = await findKnownFirstName(automation.instagramAccountId, userId, username);
 
   try {
     if (step.type === "message") {
@@ -582,6 +584,7 @@ export async function handleFlowText({
     windowOpen: true,
     sentAny: false,
   };
+  env.firstName = await findKnownFirstName(automation.instagramAccountId, senderId, run.igUsername);
   await prisma.flowRun.update({ where: { id: run.id }, data: { lastActionAt: new Date() } });
 
   try {
@@ -622,6 +625,7 @@ export async function handleFlowText({
       if (own && emailStep) {
         await syncCaptureToCrm(own.id, gateAutomation(env, emailStep.crmWebhookUrl)).catch(() => {});
       }
+      env.firstName = firstName;
       if (step.thanksText.trim()) await send(env, step.id, render(step.thanksText, env, { name: firstName }), []);
       await advance(env, step.next);
       return true;
@@ -667,6 +671,7 @@ export async function processFlowJob(job: ProcessFlowJob): Promise<void> {
     windowOpen: true,
     sentAny: false,
   };
+  env.firstName = await findKnownFirstName(automation.instagramAccountId, job.userId, run.igUsername);
 
   try {
     if (job.kind === "resume") {

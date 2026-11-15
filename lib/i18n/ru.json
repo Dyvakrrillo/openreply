@@ -727,5 +727,6 @@
   "Reset": "Сбросить",
   "Only owners and admins can change default messages": "Только владельцы и администраторы могут менять сообщения по умолчанию",
   "The link already goes out as a button, so {link} is not needed in the text.": "Ссылка уже отправляется кнопкой, поэтому {link} в тексте не нужен.",
-  "Remove {link}": "Убрать {link}"
+  "Remove {link}": "Убрать {link}",
+  "{name} shows their first name when known.": "{name} показывает имя, если оно известно."
 }

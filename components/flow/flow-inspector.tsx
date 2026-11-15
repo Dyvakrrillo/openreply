@@ -111,7 +111,7 @@ export default function FlowInspector({
                 placeholder={t("Hi {username}! …", { username: "{username}" })}
               />
               <p className="mt-1 text-xs text-muted">
-                {"{username}"} {t("personalizes.")}
+                {"{username}"} {t("personalizes.")} {t("{name} shows their first name when known.", { name: "{name}" })}
                 {step.buttons.length > 0 && ` ${step.text.length}/${MAX_BUTTON_TEXT}`}
               </p>
               {/\{link\}/i.test(step.text) && step.buttons.some((b) => b.kind === "link") && (

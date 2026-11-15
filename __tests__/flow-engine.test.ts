@@ -346,3 +346,25 @@ describe("flow click tag", () => {
     expect(parseFlowClickTag(null)).toBeNull();
   });
 });
+
+describe("flow {name}", () => {
+  const greet: Flow = {
+    version: 1,
+    steps: [
+      { id: "trigger", type: "trigger", position: p, next: "hi" },
+      { id: "hi", type: "message", position: p, text: "Ton cadeau {name} ! 🎁", buttons: [] },
+    ],
+  };
+
+  it("fills {name} with the known first name", async () => {
+    mockFindName.mockResolvedValue("Julie");
+    await startFlow({ automation, flow: greet, context, userId: "user_1", username: "julie.prof" });
+    expect(mockSend.mock.calls[0][0].text).toBe("Ton cadeau Julie ! 🎁");
+  });
+
+  it("drops {name} cleanly when the first name is unknown", async () => {
+    await startFlow({ automation, flow: greet, context, userId: "user_1", username: "julie.prof" });
+    expect(mockSend.mock.calls[0][0].text).toBe("Ton cadeau ! 🎁");
+  });
+});
+

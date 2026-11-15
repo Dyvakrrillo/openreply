@@ -51,6 +51,7 @@ import {
 } from "@/lib/billing/usage";
 import { recordWorkerAlert } from "@/lib/ops/worker-health";
 import {
+  applyFirstName,
   buildTrackedUrl,
   renderMessageWithTracking,
   renderMessageWithoutLink,
@@ -83,6 +84,7 @@ import {
   findAwaitingCapture,
   findCapturedEmail,
   findFirstNameAwaiting,
+  findKnownFirstName,
   markEmailAwaiting,
   recordKnownEmail,
   syncCaptureToCrm,
@@ -436,6 +438,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
   for (const automation of automations) {
     // Empty texts take the workspace's default wording (Settings).
     applyMessageDefaults(automation, await getMessageDefaults(automation.workspaceId));
+    // {name} in its texts becomes the recipient's first name, when known.
+    applyFirstName(automation, await findKnownFirstName(automation.instagramAccountId, commenterId, commenterName ?? null));
     // "Any word" campaigns fire on every comment; otherwise require a keyword hit.
     const matchResult = automation.matchAnyWord
       ? { matched: true, matchedKeyword: null }
@@ -1159,6 +1163,8 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   }
 
   applyMessageDefaults(automation, await getMessageDefaults(automation.workspaceId));
+  // {name} in its texts becomes the recipient's first name, when known.
+  applyFirstName(automation, await findKnownFirstName(automation.instagramAccountId, userId));
 
   // Duplicate sends are enabled: every button tap re-sends the reveal
   // instead of only firing once per person.
@@ -1565,6 +1571,7 @@ async function processClickReminder(job: Job<ProcessClickReminderJob>): Promise<
   ) {
     return;
   }
+  applyFirstName(automation, await findKnownFirstName(automation.instagramAccountId, userId, commenterName ?? null));
 
   const clicked = await prisma.linkClick.findFirst({
     where: { automationId: automation.id, recipientHash: hashRecipientId(userId) },
@@ -1619,6 +1626,7 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
   ) {
     return;
   }
+  applyFirstName(automation, await findKnownFirstName(automation.instagramAccountId, userId, commenterName ?? null));
 
   let accessToken: InstagramContext;
   try {
@@ -1688,6 +1696,8 @@ async function handleEmailReply(job: Job<ProcessMessageJob>): Promise<boolean> {
   });
   if (!automation || !hasInstagramCredentials(automation.instagramAccount)) return false;
   applyMessageDefaults(automation, await getMessageDefaults(automation.workspaceId));
+  // {name} in its texts becomes the recipient's first name, when known.
+  applyFirstName(automation, await findKnownFirstName(automation.instagramAccountId, senderId));
 
   let accessToken: InstagramContext;
   try {
@@ -1973,6 +1983,8 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
   for (const automation of automations) {
     // Empty texts take the workspace's default wording (Settings).
     applyMessageDefaults(automation, await getMessageDefaults(automation.workspaceId));
+    // {name} in its texts becomes the recipient's first name, when known.
+    applyFirstName(automation, await findKnownFirstName(automation.instagramAccountId, senderId));
     const matchResult = automation.matchAnyWord
       ? { matched: true, matchedKeyword: null }
       : matchKeywords(

@@ -47,6 +47,8 @@ interface CampaignPreviewProps {
 }
 
 const SAMPLE_USER = "username";
+// Shown for {name} in the preview (the real first name when known).
+const SAMPLE_FIRST_NAME = "Marie";
 
 /* ----------------------------- icons ----------------------------- */
 
@@ -97,7 +99,7 @@ const Ico = {
 /* ----------------------------- helpers ----------------------------- */
 
 function renderMessage(text: string, hasLink: boolean, linkUrl: string | undefined, linkPlaceholder: string) {
-  const withName = text.replace(/\{username\}/g, SAMPLE_USER);
+  const withName = text.replace(/\{username\}/g, SAMPLE_USER).replace(/\{(?:name|prenom|prénom|first_name)\}/gi, SAMPLE_FIRST_NAME);
   return withName.split(/(\{link\})/g).map((part, i) =>
     part === "{link}" ? (
       <span
@@ -413,7 +415,7 @@ function DmScreen({
           </>
         )}
         {(() => {
-          const resolved = revealMessage.replace(/\{username\}/g, SAMPLE_USER);
+          const resolved = revealMessage.replace(/\{username\}/g, SAMPLE_USER).replace(/\{(?:name|prenom|prénom|first_name)\}/gi, SAMPLE_FIRST_NAME);
           const hasToken = resolved.includes("{link}");
           const showCard = hasLink && hasToken;
           const bodyText = showCard
@@ -460,7 +462,7 @@ function DmScreen({
               <div className="max-w-[80%] rounded-2xl rounded-bl-md bg-zinc-800 px-3 py-2">
                 <p className="whitespace-pre-wrap text-sm">
                   {followUpMessage.trim()
-                    ? followUpMessage.replace(/\{username\}/g, SAMPLE_USER)
+                    ? followUpMessage.replace(/\{username\}/g, SAMPLE_USER).replace(/\{(?:name|prenom|prénom|first_name)\}/gi, SAMPLE_FIRST_NAME)
                     : t("Btw just wanted to say thanks for following me, I appreciate the support 🙌")}
                 </p>
               </div>

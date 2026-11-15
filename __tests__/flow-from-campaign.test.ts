@@ -162,3 +162,20 @@ describe("stripLinkToken", () => {
     expect(stripLinkToken("Ligne 1 {link}\nLigne 2")).toBe("Ligne 1\nLigne 2");
   });
 });
+
+describe("first name placeholders", () => {
+  it("fills or drops {name} and its spellings", async () => {
+    const { personalizeFirstName, applyFirstName, renderMessageWithoutLink } = await import("@/lib/tracking/message");
+    expect(personalizeFirstName("Merci {prénom} !", "Julie")).toBe("Merci Julie !");
+    expect(personalizeFirstName("Merci {name} !", null)).toBe("Merci !");
+    expect(renderMessageWithoutLink({ message: "Ton cadeau {name} ! {link}", commenterName: "x" })).toBe("Ton cadeau !");
+    const campaign = applyFirstName({ dmMessage: "Salut {name}", firstNameThanksMessage: "Enchantée {name}" } as never, "Julie") as {
+      dmMessage: string;
+      firstNameThanksMessage: string;
+    };
+    expect(campaign.dmMessage).toBe("Salut Julie");
+    // The thank-you keeps its token: it is filled with the answer just given.
+    expect(campaign.firstNameThanksMessage).toBe("Enchantée {name}");
+  });
+});
+

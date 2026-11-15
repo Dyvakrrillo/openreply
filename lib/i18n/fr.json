@@ -727,5 +727,6 @@
   "Reset": "Rétablir",
   "Only owners and admins can change default messages": "Seuls les propriétaires et administrateurs peuvent modifier les messages par défaut",
   "The link already goes out as a button, so {link} is not needed in the text.": "Le lien part déjà dans un bouton : {link} n'est pas utile dans le texte.",
-  "Remove {link}": "Retirer {link}"
+  "Remove {link}": "Retirer {link}",
+  "{name} shows their first name when known.": "{name} affiche son prénom s'il est connu."
 }
