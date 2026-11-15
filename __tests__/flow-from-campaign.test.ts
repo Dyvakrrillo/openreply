@@ -115,7 +115,7 @@ describe("campaignToFlow", () => {
     });
     expect(flow.steps.map((s) => s.id)).toEqual(["trigger", "reveal"]);
     expect(byId(flow.steps, "trigger")).toMatchObject({ next: "reveal" });
-    expect(byId(flow.steps, "reveal")).toMatchObject({ buttons: [{ label: "Open link" }] });
+    expect(byId(flow.steps, "reveal")).toMatchObject({ buttons: [{ label: "Ouvrir le lien" }] });
     expect(validateFlow(flow)).toEqual([]);
   });
 
@@ -123,5 +123,32 @@ describe("campaignToFlow", () => {
     const flow = campaignToFlow({ ...full, followPromptMessage: null, emailPromptMessage: "  " });
     expect((byId(flow.steps, "follow") as { text: string }).text.length).toBeGreaterThan(10);
     expect((byId(flow.steps, "email") as { text: string }).text.trim()).not.toBe("");
+  });
+
+  it("uses the workspace default wording for empty texts", async () => {
+    const { BUILT_IN_DEFAULTS } = await import("@/lib/message-defaults");
+    const custom = { ...BUILT_IN_DEFAULTS, followButton: "C'est fait", emailPrompt: "Ton mail ?" };
+    const flow = campaignToFlow({ ...full, followPromptButtonLabel: null, emailPromptMessage: null }, custom);
+    expect(byId(flow.steps, "follow")).toMatchObject({ buttonLabel: "C'est fait" });
+    expect(byId(flow.steps, "email")).toMatchObject({ text: "Ton mail ?" });
+  });
+});
+
+describe("message defaults", () => {
+  it("fills only empty campaign texts and ignores bad stored values", async () => {
+    const { applyMessageDefaults, resolveMessageDefaults, BUILT_IN_DEFAULTS } = await import("@/lib/message-defaults");
+    const d = resolveMessageDefaults({ followButton: "  Abonnée ✅  ", emailPrompt: "", unknown: "x", linkButton: 42 });
+    expect(d.followButton).toBe("Abonnée ✅");
+    expect(d.emailPrompt).toBe(BUILT_IN_DEFAULTS.emailPrompt);
+    expect(d.linkButton).toBe(BUILT_IN_DEFAULTS.linkButton);
+    const campaign = applyMessageDefaults({ followPromptButtonLabel: "Mine", emailPromptMessage: " " }, d);
+    expect(campaign).toMatchObject({ followPromptButtonLabel: "Mine", emailPromptMessage: BUILT_IN_DEFAULTS.emailPrompt });
+  });
+
+  it("removes an unknown username without leaving a gap", async () => {
+    const { personalizeUsername } = await import("@/lib/tracking/message");
+    expect(personalizeUsername("Salut {username} !", null)).toBe("Salut !");
+    expect(personalizeUsername("Hey {username}, voilà", null)).toBe("Hey, voilà");
+    expect(personalizeUsername("Hello {username}", "marie")).toBe("Hello marie");
   });
 });

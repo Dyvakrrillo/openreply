@@ -75,6 +75,10 @@ model Workspace {
   usagePeriodStart  DateTime @default(now())
   dmsSentThisPeriod Int      @default(0)
 
+  // Default wording for automatic messages (lib/message-defaults.ts): used
+  // when a campaign leaves one of its texts empty, and to prefill new ones.
+  messageDefaults Json?
+
   zernioConnection  ZernioConnection?
   members           WorkspaceMember[]
   invitations       WorkspaceInvitation[]

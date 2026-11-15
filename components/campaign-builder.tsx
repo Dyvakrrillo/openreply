@@ -13,6 +13,7 @@
  */
 
 import { useI18n } from "@/lib/i18n/provider";
+import { useMessageDefaults } from "@/components/use-message-defaults";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
@@ -144,6 +145,9 @@ function Toggle({
 
 export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderProps) {
   const { t } = useI18n();
+  // Empty labels and texts mean "the workspace default" (Settings), shown as
+  // placeholders and saved as that default.
+  const { defaults } = useMessageDefaults();
   const router = useRouter();
 
   const [loading, setLoading] = useState(mode === "edit");
@@ -184,14 +188,14 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   const [dmMessage, setDmMessage] = useState("");
   const [linkOpen, setLinkOpen] = useState(false);
   const [trackedDestinationUrl, setTrackedDestinationUrl] = useState("");
-  const [linkButtonLabel, setLinkButtonLabel] = useState("Open link");
+  const [linkButtonLabel, setLinkButtonLabel] = useState("");
   const [secondLinkOpen, setSecondLinkOpen] = useState(false);
   const [secondaryDestinationUrl, setSecondaryDestinationUrl] = useState("");
-  const [secondaryButtonLabel, setSecondaryButtonLabel] = useState("Open link");
+  const [secondaryButtonLabel, setSecondaryButtonLabel] = useState("");
   const [requireFollow, setRequireFollow] = useState(false);
   const [followPromptMessage, setFollowPromptMessage] = useState("");
   const [followPromptButtonLabel, setFollowPromptButtonLabel] =
-    useState("i'm following");
+    useState("");
   const [followUpEnabled, setFollowUpEnabled] = useState(false);
   const [followUpMessage, setFollowUpMessage] = useState("");
   const [followUpDelayMinutes, setFollowUpDelayMinutes] = useState(0);
@@ -298,19 +302,19 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         setOpeningDmMessage(c.openingDmMessage ?? "");
         setOpeningDmButtonLabel(c.openingDmButtonLabel ?? "");
         setDmMessage(c.dmMessage);
-        setLinkButtonLabel(c.linkButtonLabel ?? "Open link");
+        setLinkButtonLabel(c.linkButtonLabel ?? "");
         setIsActive(c.isActive);
         const link = c.trackedLinks?.[0]?.destinationUrl ?? "";
         setTrackedDestinationUrl(link);
         setLinkOpen(Boolean(link));
         const secondLink = c.trackedLinks?.[1];
         setSecondaryDestinationUrl(secondLink?.destinationUrl ?? "");
-        setSecondaryButtonLabel(secondLink?.label ?? "Open link");
+        setSecondaryButtonLabel(secondLink?.label ?? "");
         setSecondLinkOpen(Boolean(secondLink?.destinationUrl));
         setRequireFollow(c.requireFollow ?? false);
         setFollowPromptMessage(c.followPromptMessage ?? "");
         setFollowPromptButtonLabel(
-          c.followPromptButtonLabel ?? "i'm following"
+          c.followPromptButtonLabel ?? ""
         );
         setFollowUpEnabled(c.followUpEnabled ?? false);
         setFollowUpMessage(c.followUpMessage ?? "");
@@ -459,13 +463,13 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         ? publicReplyMessages.map((m) => m.trim()).filter(Boolean)
         : [],
       trackedDestinationUrl: trackedDestinationUrl.trim() || "",
-      linkButtonLabel: linkButtonLabel.trim() || "Open link",
+      linkButtonLabel: linkButtonLabel.trim() || defaults.linkButton,
       secondaryDestinationUrl: secondaryDestinationUrl.trim() || "",
-      secondaryButtonLabel: secondaryButtonLabel.trim() || "Open link",
+      secondaryButtonLabel: secondaryButtonLabel.trim() || defaults.linkButton,
       requireFollow,
       followPromptMessage: requireFollow ? followPromptMessage.trim() : "",
       followPromptButtonLabel: requireFollow
-        ? followPromptButtonLabel.trim() || "i'm following"
+        ? followPromptButtonLabel.trim() || defaults.followButton
         : "",
       followUpEnabled,
       followUpMessage: followUpEnabled ? followUpMessage.trim() : "",
@@ -923,7 +927,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 <textarea
                   value={followPromptMessage}
                   onChange={(e) => setFollowPromptMessage(e.target.value)}
-                  placeholder={t("quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over")}
+                  placeholder={defaults.followPrompt}
                   rows={3}
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
                   maxLength={1000}
@@ -931,7 +935,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 <input
                   value={followPromptButtonLabel}
                   onChange={(e) => setFollowPromptButtonLabel(e.target.value)}
-                  placeholder={t("i'm following")}
+                  placeholder={defaults.followButton}
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
                   maxLength={20}
                 />
@@ -956,7 +960,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 <textarea
                   value={emailPromptMessage}
                   onChange={(e) => setEmailPromptMessage(e.target.value)}
-                  placeholder={t("Before I send it over, what's your email address? Just type it here 👇")}
+                  placeholder={defaults.emailPrompt}
                   rows={3}
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
                   maxLength={1000}
@@ -964,7 +968,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 <textarea
                   value={emailInvalidMessage}
                   onChange={(e) => setEmailInvalidMessage(e.target.value)}
-                  placeholder={t("Hmm, that doesn't look like an email address. Could you type it again? (e.g. name@example.com)")}
+                  placeholder={defaults.emailInvalid}
                   rows={2}
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
                   maxLength={1000}
@@ -988,7 +992,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                       <textarea
                         value={firstNamePromptMessage}
                         onChange={(e) => setFirstNamePromptMessage(e.target.value)}
-                        placeholder={t("By the way, what should I call you? Your first name is enough 😊")}
+                        placeholder={defaults.firstNamePrompt}
                         rows={2}
                         className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
                         maxLength={1000}
@@ -996,7 +1000,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                       <input
                         value={firstNameThanksMessage}
                         onChange={(e) => setFirstNameThanksMessage(e.target.value)}
-                        placeholder={t("Nice to meet you, {name}! 💛", { name: "{name}" })}
+                        placeholder={defaults.firstNameThanks}
                         className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
                         maxLength={1000}
                       />
@@ -1037,7 +1041,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 <input
                   value={linkButtonLabel}
                   onChange={(e) => setLinkButtonLabel(e.target.value)}
-                  placeholder={t("Button label (e.g. Open link)")}
+                  placeholder={defaults.linkButton}
                   maxLength={20}
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
                 />
@@ -1195,15 +1199,15 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
             openingDmButtonLabel={openingDmButtonLabel}
             revealMessage={dmMessage}
             hasLink={Boolean(trackedDestinationUrl.trim())}
-            linkButtonLabel={linkButtonLabel || "Open link"}
+            linkButtonLabel={linkButtonLabel || defaults.linkButton}
             linkUrl={trackedDestinationUrl.trim() || undefined}
             hasSecondLink={
               secondLinkOpen && Boolean(secondaryDestinationUrl.trim())
             }
-            secondLinkButtonLabel={secondaryButtonLabel || "Open link"}
+            secondLinkButtonLabel={secondaryButtonLabel || defaults.linkButton}
             requireFollow={requireFollow}
             followPromptMessage={followPromptMessage}
-            followPromptButtonLabel={followPromptButtonLabel || "i'm following"}
+            followPromptButtonLabel={followPromptButtonLabel || defaults.followButton}
             followUpEnabled={followUpEnabled}
             followUpMessage={followUpMessage}
             followUpDelayMinutes={followUpDelayMinutes}

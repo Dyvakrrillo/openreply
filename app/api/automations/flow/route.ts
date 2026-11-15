@@ -5,6 +5,7 @@ import { campaignToFlow } from "@/lib/flows/from-campaign";
 import { flowSchema, parseFlow } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/types";
 import { syncFlowLinks } from "@/lib/flows/links";
+import { getMessageDefaults } from "@/lib/message-defaults-server";
 import { canManageWorkspace, getCurrentWorkspaceContext } from "@/lib/workspace-access";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,8 @@ export async function GET(request: NextRequest) {
 
   const saved = campaign.flow ? parseFlow(campaign.flow) : null;
   // Always sent so the canvas can redraw from the form at any time.
-  const formFlow = campaignToFlow(campaign);
+  const messageDefaults = await getMessageDefaults(context.workspaceId);
+  const formFlow = campaignToFlow(campaign, messageDefaults);
   const flow = saved ?? formFlow;
 
   return NextResponse.json({
@@ -48,6 +50,7 @@ export async function GET(request: NextRequest) {
     data: {
       flow,
       formFlow,
+      messageDefaults,
       derived: !saved,
       flowEnabled: campaign.flowEnabled,
       flowSavedAt: campaign.flowSavedAt,

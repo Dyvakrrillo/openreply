@@ -33,6 +33,7 @@ import {
 import { ADDABLE_STEPS, STEP_TITLES, createStep } from "./flow-meta";
 import { FlowStatsContext, nodeTypes, stepLabel, TriggerSummaryContext, type StepNode, type TriggerSummary } from "./flow-nodes";
 import type { FlowStepStats } from "@/lib/flows/stats";
+import type { MessageDefaults } from "@/lib/message-defaults";
 import FlowInspector from "./flow-inspector";
 import FlowPreview from "./flow-preview";
 
@@ -51,6 +52,7 @@ type CampaignInfo = {
 };
 
 type Loaded = {
+  messageDefaults?: MessageDefaults;
   flow: Flow;
   formFlow: Flow;
   derived: boolean;
@@ -286,7 +288,7 @@ function Editor({ data, onSaved }: { data: Loaded; onSaved: (savedAt: string) =>
   );
 
   function addStep(type: FlowStepType, at: AddMenu) {
-    const step = createStep(type, { x: at.flowPos.x, y: at.flowPos.y - 30 });
+    const step = createStep(type, { x: at.flowPos.x, y: at.flowPos.y - 30 }, data.messageDefaults);
     update((f) => ({
       ...f,
       steps: [

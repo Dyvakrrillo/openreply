@@ -709,5 +709,21 @@
   "This campaign runs on its steps: its messages are edited in the steps canvas. The trigger (posts, keywords, public reply) is still set here.": "Cette campagne fonctionne en mode étapes : ses messages se modifient dans le canevas. Le déclencheur (publications, mots-clés, réponse publique) se règle toujours ici.",
   "Open the canvas": "Ouvrir le canevas",
   "Replied": "Réponses",
-  "Clicked": "Cliqués"
+  "Clicked": "Cliqués",
+  "Asking for the email": "Demande de l'e-mail",
+  "When the address looks wrong": "Quand l'adresse semble incorrecte",
+  "Email already known: confirmation": "E-mail déjà connu : confirmation",
+  "{email} shows their address.": "{email} affiche son adresse.",
+  "Confirmation button: yes": "Bouton de confirmation : oui",
+  "Confirmation button: change": "Bouton de confirmation : modifier",
+  "Asking them to follow": "Demande d'abonnement",
+  "Follow button": "Bouton d'abonnement",
+  "Asking for the first name": "Demande du prénom",
+  "Thank-you after the first name": "Remerciement après le prénom",
+  "Links": "Liens",
+  "Link button": "Bouton de lien",
+  "Default messages": "Messages par défaut",
+  "Used by every automation whose own text is left empty, and to prefill new campaigns and canvas steps. {username} personalizes.": "Utilisés par toutes les automatisations dont le texte est laissé vide, et pour préremplir les nouvelles campagnes et les étapes du canevas. {username} personnalise.",
+  "Reset": "Rétablir",
+  "Only owners and admins can change default messages": "Seuls les propriétaires et administrateurs peuvent modifier les messages par défaut"
 }

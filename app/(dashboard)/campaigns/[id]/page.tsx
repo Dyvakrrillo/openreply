@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import CampaignPreview, { type PreviewTab } from "@/components/campaign-preview";
+import { useMessageDefaults } from "@/components/use-message-defaults";
 
 interface Campaign {
   id: string;
@@ -62,6 +63,7 @@ type Tab = "insights" | "preview";
 
 export default function CampaignDetailPage() {
   const { t } = useI18n();
+  const { defaults } = useMessageDefaults();
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
 
@@ -244,10 +246,10 @@ export default function CampaignDetailPage() {
           <Summary title={t("They must follow first")}>
             <FieldBox>
               {campaign.followPromptMessage ||
-                "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over"}
+                defaults.followPrompt}
             </FieldBox>
             <FieldBox>
-              {campaign.followPromptButtonLabel || "i'm following"}
+              {campaign.followPromptButtonLabel || defaults.followButton}
             </FieldBox>
           </Summary>
         )}
@@ -255,11 +257,11 @@ export default function CampaignDetailPage() {
         <Summary title={t("And then, they will get a DM")}>
           <FieldBox>{campaign.dmMessage}</FieldBox>
           {hasLink && (
-            <FieldBox>{campaign.linkButtonLabel || "Open link"}</FieldBox>
+            <FieldBox>{campaign.linkButtonLabel || defaults.linkButton}</FieldBox>
           )}
           {hasSecondLink && (
             <FieldBox>
-              {campaign.trackedLinks?.[1]?.label || "Open link"}
+              {campaign.trackedLinks?.[1]?.label || defaults.linkButton}
             </FieldBox>
           )}
         </Summary>
@@ -374,19 +376,19 @@ export default function CampaignDetailPage() {
             openingDmButtonLabel={campaign.openingDmButtonLabel ?? ""}
             revealMessage={campaign.dmMessage}
             hasLink={hasLink}
-            linkButtonLabel={campaign.linkButtonLabel ?? "Open link"}
+            linkButtonLabel={campaign.linkButtonLabel || defaults.linkButton}
             linkUrl={
               campaign.trackedLinks?.[0]?.trackedUrl ??
               campaign.trackedLinks?.[0]?.destinationUrl
             }
             hasSecondLink={hasSecondLink}
             secondLinkButtonLabel={
-              campaign.trackedLinks?.[1]?.label ?? "Open link"
+              campaign.trackedLinks?.[1]?.label || defaults.linkButton
             }
             requireFollow={campaign.requireFollow}
             followPromptMessage={campaign.followPromptMessage ?? ""}
             followPromptButtonLabel={
-              campaign.followPromptButtonLabel ?? "i'm following"
+              campaign.followPromptButtonLabel || defaults.followButton
             }
             followUpEnabled={campaign.followUpEnabled ?? false}
             followUpMessage={campaign.followUpMessage ?? ""}

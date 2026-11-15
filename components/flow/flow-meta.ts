@@ -1,13 +1,7 @@
 import type { FlowStep, FlowStepType } from "@/lib/flows/types";
 import type { I18n, StaticMessageKey } from "@/lib/i18n";
 import { newStepId } from "@/lib/flows/types";
-import {
-  DEFAULT_EMAIL_INVALID,
-  DEFAULT_EMAIL_PROMPT,
-  DEFAULT_FIRST_NAME_PROMPT,
-  DEFAULT_FIRST_NAME_THANKS,
-} from "@/lib/email-capture";
-import { DEFAULT_FOLLOW_BUTTON, DEFAULT_FOLLOW_PROMPT } from "@/lib/flows/from-campaign";
+import { BUILT_IN_DEFAULTS, type MessageDefaults } from "@/lib/message-defaults";
 
 /** English keys, translated with t() where shown. */
 export const STEP_TITLES: Record<FlowStepType, StaticMessageKey> = {
@@ -39,26 +33,30 @@ export const STEP_ACCENTS: Record<FlowStepType, string> = {
   condition: "bg-emerald-500 text-white",
 };
 
-export function createStep(type: FlowStepType, position: { x: number; y: number }): FlowStep {
+export function createStep(
+  type: FlowStepType,
+  position: { x: number; y: number },
+  d: MessageDefaults = BUILT_IN_DEFAULTS
+): FlowStep {
   const id = newStepId(type);
   switch (type) {
     case "message":
       return { id, type, position, text: "", buttons: [] };
     case "followGate":
-      return { id, type, position, text: DEFAULT_FOLLOW_PROMPT, buttonLabel: DEFAULT_FOLLOW_BUTTON };
+      return { id, type, position, text: d.followPrompt, buttonLabel: d.followButton };
     case "askEmail":
       return {
         id,
         type,
         position,
-        text: DEFAULT_EMAIL_PROMPT,
-        invalidText: DEFAULT_EMAIL_INVALID,
+        text: d.emailPrompt,
+        invalidText: d.emailInvalid,
         confirmKnown: true,
-        confirmText: "Ton e-mail est toujours {email} ?",
+        confirmText: d.emailConfirm,
         crmWebhookUrl: "",
       };
     case "askFirstName":
-      return { id, type, position, text: DEFAULT_FIRST_NAME_PROMPT, thanksText: DEFAULT_FIRST_NAME_THANKS };
+      return { id, type, position, text: d.firstNamePrompt, thanksText: d.firstNameThanks };
     case "wait":
       return { id, type, position, minutes: 60 };
     case "condition":

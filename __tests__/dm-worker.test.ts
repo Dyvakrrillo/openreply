@@ -575,7 +575,7 @@ describe("DM Worker — Full Pipeline", () => {
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
   });
 
-  it("should use 'there' when commenter name is not available", async () => {
+  it("should drop {username} cleanly when the commenter name is not available", async () => {
     const processor = getProcessor();
     const jobDataWithoutName = {
       instagramAccountId: mockJobData.instagramAccountId,
@@ -591,7 +591,7 @@ describe("DM Worker — Full Pipeline", () => {
       "decrypted_token",
       "ig_456",
       "comment_555",
-      "Hey there! Here is the link: https://example.com"
+      "Hey! Here is the link: https://example.com"
     );
   });
 
@@ -1155,7 +1155,8 @@ describe("DM Worker — DM keyword trigger", () => {
       "ig_456",
       "commenter_999",
       expect.any(String),
-      "I'm following ✅",
+      // No button label on the campaign: the workspace default wording.
+      "Je suis abonné(e)",
       "followcheck:auto_789"
     );
     expect(mockSendDirectMessage).not.toHaveBeenCalled();

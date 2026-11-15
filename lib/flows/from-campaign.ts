@@ -10,19 +10,11 @@
  * Client-safe (no database imports).
  */
 
-import {
-  DEFAULT_EMAIL_INVALID,
-  DEFAULT_EMAIL_PROMPT,
-  DEFAULT_FIRST_NAME_PROMPT,
-  DEFAULT_FIRST_NAME_THANKS,
-} from "@/lib/email-capture";
+import { BUILT_IN_DEFAULTS, type MessageDefaults } from "@/lib/message-defaults";
 import { FLOW_VERSION, type Flow, type FlowButton, type FlowStep } from "./types";
 
-/** Worker defaults, mirrored so an empty field shows what is really sent. */
-export const DEFAULT_FOLLOW_PROMPT =
-  "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over";
-export const DEFAULT_FOLLOW_BUTTON = "i'm following";
-const DEFAULT_LINK_LABEL = "Open link";
+// An empty campaign field shows the workspace default (`d`), which is what
+// the worker sends for it.
 
 export type CampaignForFlow = {
   dmMessage: string;
@@ -51,7 +43,7 @@ export type CampaignForFlow = {
 
 const COL = 340;
 
-export function campaignToFlow(c: CampaignForFlow): Flow {
+export function campaignToFlow(c: CampaignForFlow, d: MessageDefaults = BUILT_IN_DEFAULTS): Flow {
   const steps: FlowStep[] = [];
   let col = 0;
   const at = (row = 0) => ({ x: col * COL, y: row * 260 });
@@ -88,11 +80,11 @@ export function campaignToFlow(c: CampaignForFlow): Flow {
       id: "email",
       type: "askEmail",
       position: at(),
-      text: c.emailPromptMessage?.trim() || DEFAULT_EMAIL_PROMPT,
-      invalidText: c.emailInvalidMessage?.trim() || DEFAULT_EMAIL_INVALID,
+      text: c.emailPromptMessage?.trim() || d.emailPrompt,
+      invalidText: c.emailInvalidMessage?.trim() || d.emailInvalid,
       // Today a known address is reused silently; keep that behaviour.
       confirmKnown: false,
-      confirmText: "Ton e-mail est toujours {email} ?",
+      confirmText: d.emailConfirm,
       crmWebhookUrl: c.crmWebhookUrl ?? "",
     };
     steps.push(step);
@@ -108,8 +100,8 @@ export function campaignToFlow(c: CampaignForFlow): Flow {
       id: "follow",
       type: "followGate",
       position: at(),
-      text: c.followPromptMessage?.trim() || DEFAULT_FOLLOW_PROMPT,
-      buttonLabel: c.followPromptButtonLabel?.trim() || DEFAULT_FOLLOW_BUTTON,
+      text: c.followPromptMessage?.trim() || d.followPrompt,
+      buttonLabel: c.followPromptButtonLabel?.trim() || d.followButton,
     };
     steps.push(step);
     link("follow");
@@ -124,7 +116,7 @@ export function campaignToFlow(c: CampaignForFlow): Flow {
   const linkButtons: FlowButton[] = links.map((l, i) => ({
     id: `link_${i}`,
     kind: "link",
-    label: (i === 0 ? c.linkButtonLabel : l.label) || DEFAULT_LINK_LABEL,
+    label: (i === 0 ? c.linkButtonLabel : l.label) || d.linkButton,
     url: l.destinationUrl,
   }));
   const reveal: FlowStep = {
@@ -149,8 +141,8 @@ export function campaignToFlow(c: CampaignForFlow): Flow {
       id: "first_name",
       type: "askFirstName",
       position: at(),
-      text: c.firstNamePromptMessage?.trim() || DEFAULT_FIRST_NAME_PROMPT,
-      thanksText: c.firstNameThanksMessage?.trim() || DEFAULT_FIRST_NAME_THANKS,
+      text: c.firstNamePromptMessage?.trim() || d.firstNamePrompt,
+      thanksText: c.firstNameThanksMessage?.trim() || d.firstNameThanks,
     };
     steps.push(step);
     after("first_name");

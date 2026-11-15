@@ -35,6 +35,17 @@ export function replaceUrlWithTrackedPlaceholder(
 }
 
 /**
+ * Put the person's username in place of {username}. When it is unknown the
+ * token is dropped along with the space before it ("Salut {username} !" →
+ * "Salut !", "Hey {username}, voilà" → "Hey, voilà"), never replaced by a
+ * placeholder word in some other language.
+ */
+export function personalizeUsername(message: string, commenterName?: string | null) {
+  if (commenterName) return message.replace(/\{username\}/gi, commenterName);
+  return message.replace(/[ \t]*\{username\}/gi, "").replace(/^[ \t]+/gm, "");
+}
+
+/**
  * Personalize {username} and strip the {link} token — used when the link is
  * delivered as a separate button rather than inline in the message text.
  */
@@ -45,8 +56,7 @@ export function renderMessageWithoutLink({
   message: string;
   commenterName?: string | null;
 }) {
-  return message
-    .replace(/\{username\}/gi, commenterName ?? "there")
+  return personalizeUsername(message, commenterName)
     .replace(/\s*\{link\}\s*/gi, " ")
     .trim();
 }
@@ -79,7 +89,7 @@ export function renderMessageWithTracking({
   baseUrl?: string;
   recipientToken?: string;
 }) {
-  let rendered = message.replace(/\{username\}/gi, commenterName ?? "there");
+  let rendered = personalizeUsername(message, commenterName);
   const primaryLink = trackedLinks?.[0];
 
   if (!primaryLink) return rendered;

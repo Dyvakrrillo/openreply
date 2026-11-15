@@ -709,5 +709,21 @@
   "This campaign runs on its steps: its messages are edited in the steps canvas. The trigger (posts, keywords, public reply) is still set here.": "Эта кампания работает по шагам: сообщения редактируются на холсте. Триггер (публикации, ключевые слова, публичный ответ) по-прежнему настраивается здесь.",
   "Open the canvas": "Открыть холст",
   "Replied": "Ответили",
-  "Clicked": "Кликнули"
+  "Clicked": "Кликнули",
+  "Asking for the email": "Запрос e-mail",
+  "When the address looks wrong": "Если адрес выглядит неверным",
+  "Email already known: confirmation": "E-mail уже известен: подтверждение",
+  "{email} shows their address.": "{email} показывает адрес.",
+  "Confirmation button: yes": "Кнопка подтверждения: да",
+  "Confirmation button: change": "Кнопка подтверждения: изменить",
+  "Asking them to follow": "Просьба подписаться",
+  "Follow button": "Кнопка подписки",
+  "Asking for the first name": "Запрос имени",
+  "Thank-you after the first name": "Благодарность после имени",
+  "Links": "Ссылки",
+  "Link button": "Кнопка-ссылка",
+  "Default messages": "Сообщения по умолчанию",
+  "Used by every automation whose own text is left empty, and to prefill new campaigns and canvas steps. {username} personalizes.": "Используются во всех автоматизациях, где свой текст оставлен пустым, и для заполнения новых кампаний и шагов холста. {username} персонализирует.",
+  "Reset": "Сбросить",
+  "Only owners and admins can change default messages": "Только владельцы и администраторы могут менять сообщения по умолчанию"
 }

@@ -709,5 +709,21 @@
   "This campaign runs on its steps: its messages are edited in the steps canvas. The trigger (posts, keywords, public reply) is still set here.": "此活動使用步驟模式：訊息請在步驟畫布中編輯。觸發條件（貼文、關鍵字、公開回覆）仍在這裡設定。",
   "Open the canvas": "開啟畫布",
   "Replied": "已回覆",
-  "Clicked": "已點擊"
+  "Clicked": "已點擊",
+  "Asking for the email": "詢問電子郵件",
+  "When the address looks wrong": "地址看起來不正確時",
+  "Email already known: confirmation": "已知電子郵件：確認",
+  "{email} shows their address.": "{email} 會顯示對方的地址。",
+  "Confirmation button: yes": "確認按鈕：是",
+  "Confirmation button: change": "確認按鈕：修改",
+  "Asking them to follow": "請對方追蹤",
+  "Follow button": "追蹤按鈕",
+  "Asking for the first name": "詢問名字",
+  "Thank-you after the first name": "收到名字後的感謝",
+  "Links": "連結",
+  "Link button": "連結按鈕",
+  "Default messages": "預設訊息",
+  "Used by every automation whose own text is left empty, and to prefill new campaigns and canvas steps. {username} personalizes.": "用於所有未填寫自訂文字的自動化，並預先填入新活動與畫布步驟。{username} 可個人化。",
+  "Reset": "重設",
+  "Only owners and admins can change default messages": "只有擁有者與管理員可以變更預設訊息"
 }

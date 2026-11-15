@@ -36,6 +36,7 @@ import {
 } from "@/lib/email-capture";
 import { findCapturedEmail, syncCaptureToCrm, type EmailGateAutomation } from "@/lib/queue/email-gate";
 import { parseFlow } from "./schema";
+import { getMessageDefaults } from "@/lib/message-defaults-server";
 import { flowClickTag } from "./links";
 import type { AskEmailStep, Flow, FlowStep, MessageStep } from "./types";
 
@@ -333,9 +334,10 @@ async function advance(env: Env, startId: string | undefined, skipDelayFor?: str
           return;
         }
         if (known) {
-          await send(env, step.id, render(step.confirmText, env, { email: known }), [
-            { type: "postback", title: "Oui", payload: postback(env.automation.id, step.id, "yes") },
-            { type: "postback", title: "Modifier", payload: postback(env.automation.id, step.id, "change") },
+          const d = await getMessageDefaults(env.automation.workspaceId);
+          await send(env, step.id, render(step.confirmText || d.emailConfirm, env, { email: known }), [
+            { type: "postback", title: d.emailConfirmYes, payload: postback(env.automation.id, step.id, "yes") },
+            { type: "postback", title: d.emailConfirmChange, payload: postback(env.automation.id, step.id, "change") },
           ]);
           await park(env, step.id, "button");
           return;

@@ -57,6 +57,8 @@ import {
 } from "@/lib/tracking/message";
 import { TRACKED_LINK_ORDER } from "@/lib/tracking/link-order";
 import { hashRecipientId } from "@/lib/tracking/server";
+import { applyMessageDefaults, BUILT_IN_DEFAULTS } from "@/lib/message-defaults";
+import { getMessageDefaults } from "@/lib/message-defaults-server";
 import {
   handleFlowPostback,
   handleFlowText,
@@ -205,7 +207,7 @@ function buildLinkButtons(
   return trackedLinks.slice(0, 3).map((link, index) => ({
     url: buildTrackedUrl(link.slug, undefined, recipientToken),
     title:
-      (index === 0 ? primaryLabel : link.label) || link.label || "Open link",
+      (index === 0 ? primaryLabel : link.label) || link.label || BUILT_IN_DEFAULTS.linkButton,
   }));
 }
 
@@ -278,7 +280,7 @@ async function sendRevealDirectMessage({
     renderMessageWithoutLink({
       message: automation.dmMessage,
       commenterName,
-    }) || "Here's your link:";
+    }) || "Voici ton lien :";
   const recipientToken = hashRecipientId(userId);
   const buttons = buildLinkButtons(
     automation.trackedLinks,
@@ -432,6 +434,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
   });
 
   for (const automation of automations) {
+    // Empty texts take the workspace's default wording (Settings).
+    applyMessageDefaults(automation, await getMessageDefaults(automation.workspaceId));
     // "Any word" campaigns fire on every comment; otherwise require a keyword hit.
     const matchResult = automation.matchAnyWord
       ? { matched: true, matchedKeyword: null }
@@ -848,7 +852,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         const promptText = renderMessageWithoutLink({
           message:
             automation.followPromptMessage ||
-            "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over",
+            BUILT_IN_DEFAULTS.followPrompt,
           commenterName,
         });
         await sendPrivateReplyWithButton({
@@ -856,7 +860,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           instagramAccountId: automation.instagramAccount.instagramId,
           commentId: commentId,
           text: promptText,
-          buttonTitle: automation.followPromptButtonLabel || "i'm following",
+          buttonTitle: automation.followPromptButtonLabel || BUILT_IN_DEFAULTS.followButton,
           payload: `followcheck:${automation.id}`,
           postId: mediaId,
         });
@@ -866,7 +870,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           renderMessageWithoutLink({
             message: automation.dmMessage,
             commenterName,
-          }) || "Here's your link:";
+          }) || "Voici ton lien :";
         const buttons = buildLinkButtons(
           automation.trackedLinks,
           automation.linkButtonLabel,
@@ -1154,6 +1158,8 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
     return;
   }
 
+  applyMessageDefaults(automation, await getMessageDefaults(automation.workspaceId));
+
   // Duplicate sends are enabled: every button tap re-sends the reveal
   // instead of only firing once per person.
   const dedupeId = `reveal:${userId}`;
@@ -1319,7 +1325,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       const promptText = renderMessageWithoutLink({
         message:
           automation.followPromptMessage ||
-          "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over",
+          BUILT_IN_DEFAULTS.followPrompt,
         commenterName,
       });
       try {
@@ -1332,7 +1338,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
               userId: userId,
               text: promptText,
               buttonTitle:
-                automation.followPromptButtonLabel || "i'm following",
+                automation.followPromptButtonLabel || BUILT_IN_DEFAULTS.followButton,
               payload: `followcheck:${automation.id}`,
             }),
         });
@@ -1681,6 +1687,7 @@ async function handleEmailReply(job: Job<ProcessMessageJob>): Promise<boolean> {
     },
   });
   if (!automation || !hasInstagramCredentials(automation.instagramAccount)) return false;
+  applyMessageDefaults(automation, await getMessageDefaults(automation.workspaceId));
 
   let accessToken: InstagramContext;
   try {
@@ -1762,10 +1769,10 @@ async function handleEmailReply(job: Job<ProcessMessageJob>): Promise<boolean> {
           text: renderMessageWithoutLink({
             message:
               automation.followPromptMessage ||
-              "Almost there! Follow me and tap the button below to grab your link 💛",
+              BUILT_IN_DEFAULTS.followPrompt,
             commenterName,
           }),
-          buttonTitle: automation.followPromptButtonLabel || "I'm following ✅",
+          buttonTitle: automation.followPromptButtonLabel || BUILT_IN_DEFAULTS.followButton,
           payload: `followcheck:${automation.id}`,
         });
       } catch (error) {
@@ -1901,6 +1908,7 @@ async function handleFirstNameReply(job: Job<ProcessMessageJob>): Promise<boolea
     include: { instagramAccount: true },
   });
   if (!automation) return true;
+  applyMessageDefaults(automation, await getMessageDefaults(automation.workspaceId));
 
   await emailGateBestEffort("CRM sync", () => syncCaptureToCrm(capture.id, automation));
 
@@ -1963,6 +1971,8 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
   const dedupeId = `dm:${messageId}`;
 
   for (const automation of automations) {
+    // Empty texts take the workspace's default wording (Settings).
+    applyMessageDefaults(automation, await getMessageDefaults(automation.workspaceId));
     const matchResult = automation.matchAnyWord
       ? { matched: true, matchedKeyword: null }
       : matchKeywords(
@@ -2128,7 +2138,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
         const promptText = renderMessageWithoutLink({
           message:
             automation.followPromptMessage ||
-            "Almost there! Follow me and tap the button below to grab your link 💛",
+            BUILT_IN_DEFAULTS.followPrompt,
           commenterName,
         });
         await sendDirectMessageWithButton({
@@ -2136,7 +2146,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
           instagramAccountId: automation.instagramAccount.instagramId,
           userId: senderId,
           text: promptText,
-          buttonTitle: automation.followPromptButtonLabel || "I'm following ✅",
+          buttonTitle: automation.followPromptButtonLabel || BUILT_IN_DEFAULTS.followButton,
           payload: `followcheck:${automation.id}`,
         });
       } else {

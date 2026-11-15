@@ -1,3 +1,4 @@
+import { BUILT_IN_DEFAULTS } from "@/lib/message-defaults";
 // Email gate helpers: find an address in a typed DM and push the captured
 // contact to a CRM incoming webhook (built for FluentCRM, works with any
 // endpoint that accepts a form POST with an `email` field).
@@ -16,10 +17,9 @@ export function extractEmail(text: string | null | undefined): string | null {
   return email;
 }
 
-export const DEFAULT_EMAIL_PROMPT =
-  "Before I send it over, what's your email address? Just type it here 👇";
-export const DEFAULT_EMAIL_INVALID =
-  "Hmm, that doesn't look like an email address. Could you type it again? (e.g. name@example.com)";
+// Built-in wording; a workspace can replace it in Settings (lib/message-defaults.ts).
+export const DEFAULT_EMAIL_PROMPT = BUILT_IN_DEFAULTS.emailPrompt;
+export const DEFAULT_EMAIL_INVALID = BUILT_IN_DEFAULTS.emailInvalid;
 
 // After this many replies without an address we stop asking, so the person's
 // later DMs go back to normal keyword handling instead of being swallowed.
@@ -29,9 +29,8 @@ export const MAX_INVALID_EMAIL_REPLIES = 2;
 // past it we could not answer them anyway.
 export const EMAIL_CAPTURE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-export const DEFAULT_FIRST_NAME_PROMPT =
-  "By the way, what should I call you? Your first name is enough 😊";
-export const DEFAULT_FIRST_NAME_THANKS = "Nice to meet you, {name}! 💛";
+export const DEFAULT_FIRST_NAME_PROMPT = BUILT_IN_DEFAULTS.firstNamePrompt;
+export const DEFAULT_FIRST_NAME_THANKS = BUILT_IN_DEFAULTS.firstNameThanks;
 
 // Words people send back that are not a name ("ok", "thanks", "no"...).
 const NOT_A_NAME = new Set([
