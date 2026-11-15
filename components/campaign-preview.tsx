@@ -260,7 +260,7 @@ function CommentsScreen({
     <div className="flex h-full flex-col text-white">
       <StatusBar />
       <div className="h-20 bg-zinc-800/70" />
-      <div className="flex flex-1 flex-col rounded-t-2xl bg-[#0b0b0b] px-4 pt-3">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-t-2xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-[#0b0b0b] px-4 pt-3">
         <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-zinc-600" />
         <p className="text-center text-sm font-semibold">{t("Comments")}</p>
 
@@ -364,7 +364,8 @@ function DmScreen({
         </span>
       </div>
 
-      <div className="flex-1 space-y-3 px-3 py-4">
+      {/* min-h-0 lets this area shrink inside the fixed-height phone and scroll. */}
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {inboundMessage !== undefined && (
           <div className="flex justify-end">
             <div className="max-w-[80%] rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm">
