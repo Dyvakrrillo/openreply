@@ -11,7 +11,7 @@
  */
 
 import { BUILT_IN_DEFAULTS, type MessageDefaults } from "@/lib/message-defaults";
-import { FLOW_VERSION, type Flow, type FlowButton, type FlowStep } from "./types";
+import { FLOW_VERSION, stripLinkToken, type Flow, type FlowButton, type FlowStep } from "./types";
 
 // An empty campaign field shows the workspace default (`d`), which is what
 // the worker sends for it.
@@ -123,7 +123,8 @@ export function campaignToFlow(c: CampaignForFlow, d: MessageDefaults = BUILT_IN
     id: "reveal",
     type: "message",
     position: at(),
-    text: c.dmMessage,
+    // The link goes out as button(s), so {link} has no place in the text.
+    text: linkButtons.length > 0 ? stripLinkToken(c.dmMessage) : c.dmMessage,
     buttons: linkButtons,
   };
   steps.push(reveal);
@@ -174,7 +175,7 @@ export function campaignToFlow(c: CampaignForFlow, d: MessageDefaults = BUILT_IN
       id: "click_reminder",
       type: "message",
       position: { x: (revealCol + 1) * COL, y: 300 },
-      text: c.clickReminderMessage,
+      text: stripLinkToken(c.clickReminderMessage),
       buttons: linkButtons.map((b) => ({ ...b, id: `${b.id}_reminder` })),
     });
   }

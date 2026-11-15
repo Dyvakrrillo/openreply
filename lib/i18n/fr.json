@@ -725,5 +725,7 @@
   "Default messages": "Messages par défaut",
   "Used by every automation whose own text is left empty, and to prefill new campaigns and canvas steps. {username} personalizes.": "Utilisés par toutes les automatisations dont le texte est laissé vide, et pour préremplir les nouvelles campagnes et les étapes du canevas. {username} personnalise.",
   "Reset": "Rétablir",
-  "Only owners and admins can change default messages": "Seuls les propriétaires et administrateurs peuvent modifier les messages par défaut"
+  "Only owners and admins can change default messages": "Seuls les propriétaires et administrateurs peuvent modifier les messages par défaut",
+  "The link already goes out as a button, so {link} is not needed in the text.": "Le lien part déjà dans un bouton : {link} n'est pas utile dans le texte.",
+  "Remove {link}": "Retirer {link}"
 }

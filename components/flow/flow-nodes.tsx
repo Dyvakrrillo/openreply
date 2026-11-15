@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect } from "react";
 import { Handle, Position, useUpdateNodeInternals, type NodeProps, type Node } from "@xyflow/react";
 import { useI18n } from "@/lib/i18n/provider";
-import type { FlowStep } from "@/lib/flows/types";
+import { stripLinkToken, type FlowStep } from "@/lib/flows/types";
 import { ctr, type FlowStepStats } from "@/lib/flows/stats";
 import type { I18n } from "@/lib/i18n";
 import { STEP_ACCENTS, STEP_TITLES, formatMinutes } from "./flow-meta";
@@ -187,7 +187,11 @@ export function StepNodeView({ id, data, selected }: NodeProps<StepNode>) {
             {step.delaySeconds ? (
               <Chip icon="⏱">{t("Waiting {n} sec…", { n: step.delaySeconds })}</Chip>
             ) : null}
-            {step.text.trim() ? <Bubble>{render(step.text)}</Bubble> : <Bubble muted>{t("Empty message")}</Bubble>}
+            {step.text.trim() ? (
+              <Bubble>{render(step.buttons.some((b) => b.kind === "link") ? stripLinkToken(step.text) : step.text)}</Bubble>
+            ) : (
+              <Bubble muted>{t("Empty message")}</Bubble>
+            )}
             {step.buttons.map((b) =>
               b.kind === "link" ? (
                 <div key={b.id} className="flex justify-end">

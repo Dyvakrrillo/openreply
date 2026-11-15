@@ -6,6 +6,7 @@ import {
   MAX_BUTTON_TEXT,
   MAX_WAIT_MINUTES,
   newStepId,
+  stripLinkToken,
   type ConditionCheck,
   type FlowButton,
   type FlowStep,
@@ -113,6 +114,18 @@ export default function FlowInspector({
                 {"{username}"} {t("personalizes.")}
                 {step.buttons.length > 0 && ` ${step.text.length}/${MAX_BUTTON_TEXT}`}
               </p>
+              {/\{link\}/i.test(step.text) && step.buttons.some((b) => b.kind === "link") && (
+                <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-sky-50 px-2.5 py-2 text-xs text-sky-900">
+                  <span>{t("The link already goes out as a button, so {link} is not needed in the text.", { link: "{link}" })}</span>
+                  <button
+                    type="button"
+                    onClick={() => set({ text: stripLinkToken(step.text) })}
+                    className="shrink-0 rounded-md bg-white px-2 py-1 font-medium text-sky-700 shadow-sm hover:bg-sky-100"
+                  >
+                    {t("Remove {link}", { link: "{link}" })}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div>

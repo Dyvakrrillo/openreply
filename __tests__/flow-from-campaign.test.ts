@@ -70,7 +70,8 @@ describe("campaignToFlow", () => {
       next: "follow",
     });
     expect(byId(s, "reveal")).toMatchObject({
-      text: "Voici ton guide {link}",
+      // The link goes out as buttons, so the token is dropped from the text.
+      text: "Voici ton guide",
       buttons: [
         { kind: "link", label: "Le guide", url: "https://example.com/a" },
         { kind: "link", label: "Le bonus", url: "https://example.com/b" },
@@ -150,5 +151,14 @@ describe("message defaults", () => {
     expect(personalizeUsername("Salut {username} !", null)).toBe("Salut !");
     expect(personalizeUsername("Hey {username}, voilà", null)).toBe("Hey, voilà");
     expect(personalizeUsername("Hello {username}", "marie")).toBe("Hello marie");
+  });
+});
+
+describe("stripLinkToken", () => {
+  it("removes {link} without leaving stray spaces", async () => {
+    const { stripLinkToken } = await import("@/lib/flows/types");
+    expect(stripLinkToken("elles arrivent par ici ! 💜{link}")).toBe("elles arrivent par ici ! 💜");
+    expect(stripLinkToken("Voici {link} ton guide")).toBe("Voici ton guide");
+    expect(stripLinkToken("Ligne 1 {link}\nLigne 2")).toBe("Ligne 1\nLigne 2");
   });
 });

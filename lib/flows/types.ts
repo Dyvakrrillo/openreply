@@ -198,6 +198,18 @@ export function disconnectTarget(step: FlowStep, targetId: string): FlowStep {
   );
 }
 
+/**
+ * Drop the {link} token from a message whose link goes out as a button: the
+ * button carries the link, so the token would only be noise in the text.
+ */
+export function stripLinkToken(text: string): string {
+  return text
+    .replace(/[ \t]*\{link\}[ \t]*/gi, " ")
+    .replace(/ +\n/g, "\n")
+    .replace(/ {2,}/g, " ")
+    .trim();
+}
+
 let idCounter = 0;
 export function newStepId(prefix = "s"): string {
   idCounter += 1;

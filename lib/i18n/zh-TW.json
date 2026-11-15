@@ -725,5 +725,7 @@
   "Default messages": "預設訊息",
   "Used by every automation whose own text is left empty, and to prefill new campaigns and canvas steps. {username} personalizes.": "用於所有未填寫自訂文字的自動化，並預先填入新活動與畫布步驟。{username} 可個人化。",
   "Reset": "重設",
-  "Only owners and admins can change default messages": "只有擁有者與管理員可以變更預設訊息"
+  "Only owners and admins can change default messages": "只有擁有者與管理員可以變更預設訊息",
+  "The link already goes out as a button, so {link} is not needed in the text.": "連結已經以按鈕傳送，文字中不需要 {link}。",
+  "Remove {link}": "移除 {link}"
 }

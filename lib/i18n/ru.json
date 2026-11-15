@@ -725,5 +725,7 @@
   "Default messages": "Сообщения по умолчанию",
   "Used by every automation whose own text is left empty, and to prefill new campaigns and canvas steps. {username} personalizes.": "Используются во всех автоматизациях, где свой текст оставлен пустым, и для заполнения новых кампаний и шагов холста. {username} персонализирует.",
   "Reset": "Сбросить",
-  "Only owners and admins can change default messages": "Только владельцы и администраторы могут менять сообщения по умолчанию"
+  "Only owners and admins can change default messages": "Только владельцы и администраторы могут менять сообщения по умолчанию",
+  "The link already goes out as a button, so {link} is not needed in the text.": "Ссылка уже отправляется кнопкой, поэтому {link} в тексте не нужен.",
+  "Remove {link}": "Убрать {link}"
 }
