@@ -593,5 +593,16 @@
   "Psst, don't forget your link, it's right here 👇": "Psiu, não esquece o seu link, está bem aqui 👇",
   "Only sent to people who haven't clicked yet, with the link button again. It needs an open conversation: follow condition, opening DM, email, or a DM keyword.": "Enviado só para quem ainda não clicou, com o botão do link de novo. Precisa de uma conversa aberta: condição de seguir, DM de abertura, e-mail ou palavra-chave na DM.",
   "Add the reminder message, or turn the reminder off.": "Adicione a mensagem do lembrete ou desative o lembrete.",
-  "Then a reminder if they haven't clicked": "Depois um lembrete se não clicarem"
+  "Then a reminder if they haven't clicked": "Depois um lembrete se não clicarem",
+  "Instagram username": "Nome de usuário do Instagram",
+  "Add a contact": "Adicionar um contato",
+  "First name (optional)": "Nome (opcional)",
+  "Could not save this contact.": "Não foi possível salvar este contato.",
+  "Added by hand, not reached yet": "Adicionado manualmente, ainda não contatado",
+  "Invalid email address": "Endereço de e-mail inválido",
+  "Invalid Instagram username": "Nome de usuário do Instagram inválido",
+  "Contact not found": "Contato não encontrado",
+  "Invalid input": "Dados inválidos",
+  "Instagram account not found": "Conta do Instagram não encontrada",
+  "For someone whose email you already have (e.g. from ManyChat): campaigns that ask for an email won't ask them again.": "Para alguém cujo e-mail você já tem (por exemplo, do ManyChat): as campanhas que pedem o e-mail não vão pedir de novo."
 }

@@ -593,5 +593,16 @@
   "Psst, don't forget your link, it's right here 👇": "Псс, не забудь свою ссылку, она здесь 👇",
   "Only sent to people who haven't clicked yet, with the link button again. It needs an open conversation: follow condition, opening DM, email, or a DM keyword.": "Отправляется только тем, кто ещё не перешёл по ссылке, снова с кнопкой ссылки. Нужен открытый диалог: условие подписки, вступительное сообщение, e-mail или ключевое слово в директ.",
   "Add the reminder message, or turn the reminder off.": "Добавь текст напоминания или отключи напоминание.",
-  "Then a reminder if they haven't clicked": "Затем напоминание, если не перешли"
+  "Then a reminder if they haven't clicked": "Затем напоминание, если не перешли",
+  "Instagram username": "Имя пользователя Instagram",
+  "Add a contact": "Добавить контакт",
+  "First name (optional)": "Имя (необязательно)",
+  "Could not save this contact.": "Не удалось сохранить контакт.",
+  "Added by hand, not reached yet": "Добавлен вручную, ещё не получал сообщений",
+  "Invalid email address": "Неверный адрес электронной почты",
+  "Invalid Instagram username": "Неверное имя пользователя Instagram",
+  "Contact not found": "Контакт не найден",
+  "Invalid input": "Неверные данные",
+  "Instagram account not found": "Аккаунт Instagram не найден",
+  "For someone whose email you already have (e.g. from ManyChat): campaigns that ask for an email won't ask them again.": "Для человека, чей адрес вы уже знаете (например, из ManyChat): кампании, которые спрашивают email, не будут спрашивать его снова."
 }

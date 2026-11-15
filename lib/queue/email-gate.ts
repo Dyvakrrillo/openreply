@@ -17,17 +17,38 @@ export type EmailGateAutomation = {
   instagramAccount: { username: string };
 };
 
-/** The first name this person gave this Instagram account, through any campaign. */
+/** A first name typed in by hand for this username (Contacts page). */
+async function findKnownContactFirstName(
+  instagramAccountId: string,
+  igUsername: string | null | undefined,
+): Promise<string | null> {
+  if (!igUsername) return null;
+  const known = await prisma.knownContact.findFirst({
+    where: {
+      instagramAccountId,
+      igUsername: { equals: igUsername.replace(/^@/, ""), mode: "insensitive" },
+      firstName: { not: null },
+    },
+    select: { firstName: true },
+  });
+  return known?.firstName ?? null;
+}
+
+/**
+ * The first name this person gave this Instagram account, through any
+ * campaign, or that was added by hand for their username.
+ */
 export async function findKnownFirstName(
   instagramAccountId: string,
   igUserId: string,
+  igUsername?: string | null,
 ): Promise<string | null> {
   const capture = await prisma.emailCapture.findFirst({
     where: { instagramAccountId, igUserId, firstName: { not: null } },
     orderBy: { updatedAt: "desc" },
     select: { firstName: true },
   });
-  return capture?.firstName ?? null;
+  return capture?.firstName ?? findKnownContactFirstName(instagramAccountId, igUsername);
 }
 
 /**
@@ -40,7 +61,9 @@ export async function claimFirstNameQuestion(
   automationId: string,
   instagramAccountId: string,
   igUserId: string,
+  igUsername?: string | null,
 ): Promise<boolean> {
+  if (await findKnownContactFirstName(instagramAccountId, igUsername)) return false;
   const alreadyAsked = await prisma.emailCapture.findFirst({
     where: {
       instagramAccountId,
@@ -175,7 +198,8 @@ export async function syncCaptureToCrm(
   const capture = await prisma.emailCapture.findUnique({ where: { id: captureId } });
   if (!capture?.email) return;
   const firstName =
-    capture.firstName ?? (await findKnownFirstName(capture.instagramAccountId, capture.igUserId));
+    capture.firstName ??
+    (await findKnownFirstName(capture.instagramAccountId, capture.igUserId, capture.igUsername));
   try {
     await pushContactToCrm(automation.crmWebhookUrl, {
       email: capture.email,

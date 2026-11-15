@@ -5,11 +5,14 @@
  *
  * Everyone who gave their email in a DM, one row per person: Instagram
  * username, email, first name, the campaigns they came through and whether
- * the CRM received them. Searchable and exportable as CSV.
+ * the CRM received them. Searchable and exportable as CSV. A first name or an
+ * email can be corrected by hand, and people whose email you already have
+ * (e.g. from ManyChat) can be added so campaigns don't ask them again.
  */
 
 import { useI18n } from "@/lib/i18n/provider";
-import { useEffect, useMemo, useState } from "react";
+import type { StaticMessageKey } from "@/lib/i18n";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 import type { ContactRow } from "@/app/api/contacts/route";
 
@@ -41,6 +44,113 @@ function downloadCsv(contacts: ContactRow[]) {
   URL.revokeObjectURL(url);
 }
 
+// Errors the contacts API can return, shown in the interface language.
+const SAVE_ERRORS: Record<string, StaticMessageKey> = {
+  "Invalid input": "Invalid input",
+  "Invalid email address": "Invalid email address",
+  "Invalid Instagram username": "Invalid Instagram username",
+  "Instagram account not found": "Instagram account not found",
+  "Contact not found": "Contact not found",
+};
+
+function saveError(error: unknown): StaticMessageKey {
+  return (typeof error === "string" && SAVE_ERRORS[error]) || "Could not save this contact.";
+}
+
+const inputClass =
+  "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none";
+
+function AddContactForm({
+  accounts,
+  defaultAccountId,
+  onSaved,
+  onCancel,
+}: {
+  accounts: AccountOption[];
+  defaultAccountId: string;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const { t } = useI18n();
+  const [accountId, setAccountId] = useState(
+    defaultAccountId !== "all" ? defaultAccountId : accounts[0]?.id ?? ""
+  );
+  const [igUsername, setIgUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    const res = await fetch("/api/contacts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ instagramAccountId: accountId, igUsername, email, firstName }),
+    }).catch(() => null);
+    const payload = await res?.json().catch(() => null);
+    setBusy(false);
+    if (!payload?.success) {
+      setError(t(saveError(payload?.error)));
+      return;
+    }
+    onSaved();
+  }
+
+  return (
+    <form onSubmit={save} className="panel rounded p-4 sm:p-6 space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-foreground">{t("Add a contact")}</h2>
+        <p className="mt-1 text-sm text-muted">
+          {t("For someone whose email you already have (e.g. from ManyChat): campaigns that ask for an email won't ask them again.")}
+        </p>
+      </div>
+      <div className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {accounts.length > 1 && (
+          <AccountSelect accounts={accounts} value={accountId} onChange={setAccountId} includeAll={false} />
+        )}
+        <input
+          required
+          value={igUsername}
+          onChange={(e) => setIgUsername(e.target.value)}
+          placeholder={t("Instagram username")}
+          autoCapitalize="none"
+          className={inputClass}
+        />
+        <input
+          required
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder={t("Email")}
+          className={inputClass}
+        />
+        <input
+          value={firstName}
+          onChange={(e) => setFirstName(e.target.value)}
+          placeholder={t("First name (optional)")}
+          className={inputClass}
+        />
+      </div>
+      {error && <p className="text-sm text-red-500">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={busy || !accountId}
+          className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-40"
+        >
+          {busy ? t("Saving…") : t("Save")}
+        </button>
+        <button type="button" onClick={onCancel} className="rounded-lg border border-border px-3 py-2 text-sm text-foreground">
+          {t("Cancel")}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function ContactsPage() {
   const { t, locale } = useI18n();
   const [contacts, setContacts] = useState<ContactRow[]>([]);
@@ -49,6 +159,45 @@ export default function ContactsPage() {
   const [query, setQuery] = useState("");
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [accountId, setAccountId] = useState("all");
+  const [adding, setAdding] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState({ email: "", firstName: "" });
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState("");
+  const reload = useCallback(() => setReloadKey((key) => key + 1), []);
+
+  function startEdit(contact: ContactRow) {
+    setEditingId(contact.id);
+    setDraft({ email: contact.email, firstName: contact.firstName ?? "" });
+    setEditError("");
+  }
+
+  async function saveEdit(contact: ContactRow) {
+    setSaving(true);
+    setEditError("");
+    const res = await fetch("/api/contacts", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: contact.source, id: contact.id, ...draft }),
+    }).catch(() => null);
+    const payload = await res?.json().catch(() => null);
+    setSaving(false);
+    if (!payload?.success) {
+      setEditError(t(saveError(payload?.error)));
+      return;
+    }
+    setContacts((rows) =>
+      rows.map((row) =>
+        row.id === contact.id
+          ? { ...row, email: draft.email.trim().toLowerCase(), firstName: draft.firstName.trim() || null }
+          : row
+      )
+    );
+    setEditingId(null);
+    // The CRM status may have changed after the re-send.
+    if (contact.source === "capture") reload();
+  }
 
   useEffect(() => {
     fetch("/api/dashboard/stats")
@@ -75,7 +224,7 @@ export default function ContactsPage() {
     return () => {
       cancelled = true;
     };
-  }, [accountId]);
+  }, [accountId, reloadKey]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -122,6 +271,15 @@ export default function ContactsPage() {
               }}
             />
           )}
+          {accounts.length > 0 && !adding && (
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="rounded-lg border border-border px-3 py-2 text-sm text-foreground hover:border-border-hover"
+            >
+              {t("Add a contact")}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => downloadCsv(filtered)}
@@ -133,12 +291,24 @@ export default function ContactsPage() {
         </div>
       </div>
 
+      {adding && (
+        <AddContactForm
+          accounts={accounts}
+          defaultAccountId={accountId}
+          onCancel={() => setAdding(false)}
+          onSaved={() => {
+            setAdding(false);
+            reload();
+          }}
+        />
+      )}
+
       <div className="panel rounded overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] text-sm">
             <thead>
               <tr className="border-b border-border text-left">
-                {[t("Instagram"), t("Email"), t("First name"), t("Campaigns"), t("Since"), t("CRM")].map((h) => (
+                {[t("Instagram"), t("Email"), t("First name"), t("Campaigns"), t("Since"), t("CRM"), ""].map((h) => (
                   <th key={h} className="px-4 py-4 text-xs font-semibold text-muted uppercase tracking-wider sm:px-6">
                     {h}
                   </th>
@@ -148,14 +318,14 @@ export default function ContactsPage() {
             <tbody className="divide-y divide-border">
               {loading && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-4 sm:px-6">
+                  <td colSpan={7} className="px-4 py-4 sm:px-6">
                     <div className="h-4 bg-surface-hover rounded" />
                   </td>
                 </tr>
               )}
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-muted sm:px-6">
+                  <td colSpan={7} className="px-4 py-12 text-center text-muted sm:px-6">
                     {query ? t("No contact matches this search.") : t("No contacts yet. They appear here once someone types their email in a DM.")}
                   </td>
                 </tr>
@@ -177,21 +347,82 @@ export default function ContactsPage() {
                         <span className="text-muted">{c.igUserId.slice(0, 10)}…</span>
                       )}
                     </td>
-                    <td className="px-4 py-4 text-foreground sm:px-6">{c.email}</td>
-                    <td className="px-4 py-4 sm:px-6">
-                      {c.firstName ? <span className="text-foreground">{c.firstName}</span> : <span className="text-muted">—</span>}
+                    {editingId === c.id ? (
+                      <>
+                        <td className="px-4 py-3 sm:px-6">
+                          <input
+                            type="email"
+                            value={draft.email}
+                            onChange={(e) => setDraft({ ...draft, email: e.target.value })}
+                            aria-label={t("Email")}
+                            className={inputClass}
+                          />
+                          {editError && <p className="mt-1 text-xs text-red-500">{editError}</p>}
+                        </td>
+                        <td className="px-4 py-3 sm:px-6">
+                          <input
+                            value={draft.firstName}
+                            onChange={(e) => setDraft({ ...draft, firstName: e.target.value })}
+                            onKeyDown={(e) => e.key === "Enter" && saveEdit(c)}
+                            aria-label={t("First name")}
+                            placeholder={t("First name")}
+                            autoFocus
+                            className={inputClass}
+                          />
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-4 text-foreground sm:px-6">{c.email}</td>
+                        <td className="px-4 py-4 sm:px-6">
+                          {c.firstName ? <span className="text-foreground">{c.firstName}</span> : <span className="text-muted">—</span>}
+                        </td>
+                      </>
+                    )}
+                    <td className="px-4 py-4 text-muted sm:px-6">
+                      {c.source === "known" ? t("Added by hand, not reached yet") : c.campaigns.join(", ")}
                     </td>
-                    <td className="px-4 py-4 text-muted sm:px-6">{c.campaigns.join(", ")}</td>
                     <td className="px-4 py-4 text-muted whitespace-nowrap sm:px-6">
                       {c.firstCapturedAt
                         ? new Date(c.firstCapturedAt).toLocaleDateString(locale, { day: "numeric", month: "short" })
                         : "—"}
                     </td>
                     <td className="px-4 py-4 sm:px-6" title={c.crmError ?? undefined}>
-                      {c.crmSynced ? (
+                      {c.source === "known" ? (
+                        <span className="text-muted">—</span>
+                      ) : c.crmSynced ? (
                         <span className="text-emerald-500">{t("Sent")}</span>
                       ) : (
                         <span className="text-red-500">{t("Failed")}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 text-right whitespace-nowrap sm:px-6">
+                      {editingId === c.id ? (
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => saveEdit(c)}
+                            disabled={saving}
+                            className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+                          >
+                            {saving ? t("Saving…") : t("Save")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingId(null)}
+                            className="rounded-lg border border-border px-3 py-1.5 text-xs text-foreground"
+                          >
+                            {t("Cancel")}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => startEdit(c)}
+                          className="rounded-lg border border-border px-3 py-1.5 text-xs text-foreground hover:border-border-hover"
+                        >
+                          {t("Edit")}
+                        </button>
                       )}
                     </td>
                   </tr>

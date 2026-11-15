@@ -593,5 +593,16 @@
   "Psst, don't forget your link, it's right here 👇": "提醒一下，別忘了你的連結，就在這裡 👇",
   "Only sent to people who haven't clicked yet, with the link button again. It needs an open conversation: follow condition, opening DM, email, or a DM keyword.": "只會傳給尚未點擊的人，並再次附上連結按鈕。需要已開啟的對話：追蹤條件、開場私訊、電子郵件或私訊關鍵字。",
   "Add the reminder message, or turn the reminder off.": "請新增提醒訊息，或關閉提醒。",
-  "Then a reminder if they haven't clicked": "接著，若未點擊則傳送提醒"
+  "Then a reminder if they haven't clicked": "接著，若未點擊則傳送提醒",
+  "Instagram username": "Instagram 使用者名稱",
+  "Add a contact": "新增聯絡人",
+  "First name (optional)": "名字（選填）",
+  "Could not save this contact.": "無法儲存此聯絡人。",
+  "Added by hand, not reached yet": "手動新增，尚未聯繫",
+  "Invalid email address": "電子郵件地址無效",
+  "Invalid Instagram username": "Instagram 使用者名稱無效",
+  "Contact not found": "找不到聯絡人",
+  "Invalid input": "輸入無效",
+  "Instagram account not found": "找不到 Instagram 帳號",
+  "For someone whose email you already have (e.g. from ManyChat): campaigns that ask for an email won't ask them again.": "適用於已經有電子郵件的人（例如來自 ManyChat）：要求電子郵件的活動不會再問他們。"
 }

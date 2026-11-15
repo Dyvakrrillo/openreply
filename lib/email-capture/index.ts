@@ -47,8 +47,17 @@ const NOT_A_NAME = new Set([
   "please", "plz", "stp", "svp", "lol", "mdr", "ahah", "haha", "test",
 ]);
 
+// Greetings and thanks people wrap around their name ("Bonjour, Julie",
+// "Julie merci beaucoup", "julie et toi ?"): removed before reading the name.
+const GREETING_PREFIX =
+  /^(?:(?:bonjour|bonsoir|salut|coucou|hello|hey|hi|yo|re|oui|ok|okay|d['’]accord)\b[\s,.!:;-]*)+/i;
+const POLITE_SUFFIX =
+  /(?:[\s,.!-]+(?:merci(?:\s+(?:beaucoup|bcp|à\s+toi|a\s+toi))?|thanks|thank\s+you|thx|et\s+toi|and\s+you|bisous?|bises?))+[\s?!.]*$/i;
+
 const NAME_PREFIXES = [
-  /^(?:moi\s+)?c['’]est\s+/i,
+  /^(?:moi\s+)?c['’\s]est\s+/i,
+  /^je\s+suis\s+/i,
+  /^i\s+am\s+/i,
   /^je\s+m['’]appelle\s+/i,
   /^mon\s+pr[ée]nom\s+(?:est|c['’]est)\s*:?\s*/i,
   /^pr[ée]nom\s*:\s*/i,
@@ -72,6 +81,7 @@ export function extractFirstName(text: string | null | undefined): string | null
     .replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+  value = value.replace(GREETING_PREFIX, "").replace(POLITE_SUFFIX, "").trim();
   for (const prefix of NAME_PREFIXES) value = value.replace(prefix, "");
   value = value.replace(/^[\s"'“”«»(]+|[\s"'“”«»).!,;:~]+$/g, "");
   if (!value || value.length > 40) return null;

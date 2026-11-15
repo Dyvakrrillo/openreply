@@ -357,7 +357,8 @@ async function askFirstNameAfterDelivery({
     const claimed = await claimFirstNameQuestion(
       automation.id,
       automation.instagramAccountId,
-      userId
+      userId,
+      commenterName
     );
     if (!claimed) return;
     await sendDirectMessage({

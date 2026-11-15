@@ -494,6 +494,8 @@ model KnownContact {
   instagramAccountId String
   igUsername         String
   email              String
+  firstName          String?
+  // "import" (CSV) or "manual" (added from the Contacts page).
   source             String   @default("import")
   createdAt          DateTime @default(now())
 

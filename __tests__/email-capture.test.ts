@@ -87,6 +87,14 @@ describe("extractFirstName", () => {
     ["Prénom : Chloé.", "Chloé"],
     ["Anne Sophie", "Anne Sophie"],
     ["my name is Sam!", "Sam"],
+    ["Julie merci", "Julie"],
+    ["Bonjour Julie", "Julie"],
+    ["Coucou, moi c'est julie", "Julie"],
+    ["Je suis Julie", "Julie"],
+    ["Julie 😊 merci beaucoup", "Julie"],
+    ["julie et toi ?", "Julie"],
+    ["Reine", "Reine"],
+    ["Yohann", "Yohann"],
   ])("reads %s as %s", (input, expected) => {
     expect(extractFirstName(input)).toBe(expected);
   });
@@ -96,6 +104,9 @@ describe("extractFirstName", () => {
     ["toujours pas"],
     ["je sais pas"],
     ["merci !"],
+    ["merci beaucoup"],
+    ["Bonjour"],
+    ["je suis pas sûre"],
     ["c'est quoi le lien du document ?"],
     ["jane@example.com"],
     ["j'adore ton contenu tu es top vraiment"],
