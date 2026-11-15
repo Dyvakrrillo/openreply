@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { mockPrisma, mockSend, mockFollow, mockQueueAdd, mockFindEmail, mockSyncCrm } = vi.hoisted(() => ({
   mockPrisma: {
     flowRun: { upsert: vi.fn(), update: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
-    flowEvent: { create: vi.fn() },
+    flowEvent: { create: vi.fn(), findFirst: vi.fn() },
+    flowLink: { findMany: vi.fn() },
     linkClick: { findFirst: vi.fn() },
     automation: { findFirst: vi.fn() },
     emailCapture: { upsert: vi.fn(), updateMany: vi.fn(), findMany: vi.fn() },
@@ -104,6 +105,8 @@ beforeEach(() => {
   });
   mockPrisma.flowRun.update.mockImplementation(async () => ({ seq: ++seq }));
   mockPrisma.flowEvent.create.mockResolvedValue({});
+  mockPrisma.flowEvent.findFirst.mockResolvedValue(null);
+  mockPrisma.flowLink.findMany.mockResolvedValue([{ buttonId: "promo", slug: "flowslug1" }]);
   mockPrisma.emailCapture.upsert.mockResolvedValue({ id: "cap_1" });
   mockPrisma.emailCapture.updateMany.mockResolvedValue({ count: 0 });
   mockSend.mockResolvedValue({ message_id: "m1" });
@@ -134,9 +137,9 @@ describe("flow engine", () => {
     expect(args.userId).toBeUndefined();
     expect(args.text).toBe("Hi marie");
     expect(args.buttons[0]).toEqual({ type: "postback", title: "I want it", payload: "flow:auto_1:hello:want" });
-    // The link button goes through the campaign's tracked link.
+    // The link button goes through the campaign's tracked link, tagged with the card.
     expect(args.buttons[1].type).toBe("url");
-    expect(args.buttons[1].url).toContain("guide1");
+    expect(args.buttons[1].url).toMatch(/\/r\/guide1\?r=[\w-]+&f=hello~site$/);
     expect(lastParkData()).toMatchObject({ currentStepId: "hello", waiting: "button" });
   });
 
@@ -274,5 +277,45 @@ describe("flow engine", () => {
     mockFollow.mockResolvedValueOnce(true);
     await handleFlowPostback({ automation: gatedAutomation, context, userId: "user_1", username: null, payload: { stepId: "gate", action: "follow" } });
     expect(mockSend.mock.calls[1][0].text).toBe("Thanks!");
+  });
+
+  it("gives a canvas-only link its own tracked redirect", async () => {
+    const promoFlow: Flow = {
+      version: 1,
+      steps: [
+        { id: "trigger", type: "trigger", position: p, next: "promo_msg" },
+        {
+          id: "promo_msg",
+          type: "message",
+          position: p,
+          text: "Bonus",
+          buttons: [{ id: "promo", kind: "link", label: "Bonus", url: "https://example.com/bonus" }],
+        },
+      ],
+    };
+    await startFlow({ automation, flow: promoFlow, context, userId: "user_1", username: null });
+    expect(mockSend.mock.calls[0][0].buttons[0].url).toMatch(/\/r\/flowslug1\?r=[\w-]+&f=promo_msg~promo$/);
+  });
+
+  it("counts a click on a canvas link as clicked", async () => {
+    mockPrisma.flowRun.findUnique.mockResolvedValue({
+      id: "run_1", seq: 9, igUserId: "user_1", igUsername: null,
+      currentStepId: "pause", waiting: "timer", invalidReplies: 0, status: "ACTIVE",
+    });
+    mockPrisma.automation.findFirst.mockResolvedValue(automation);
+    mockPrisma.linkClick.findFirst.mockResolvedValue(null);
+    mockPrisma.flowEvent.findFirst.mockResolvedValue({ id: "ev" });
+    await processFlowJob({ instagramAccountId: "ig_biz", automationId: "auto_1", userId: "user_1", runId: "run_1", kind: "noClick", stepId: "link" });
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+});
+
+describe("flow click tag", () => {
+  it("round-trips and rejects anything else", async () => {
+    const { flowClickTag, parseFlowClickTag } = await import("@/lib/flows/links");
+    expect(parseFlowClickTag(flowClickTag("step_1", "btn-2"))).toEqual({ stepId: "step_1", buttonId: "btn-2" });
+    expect(parseFlowClickTag("a~b~c")).toBeNull();
+    expect(parseFlowClickTag("<script>")).toBeNull();
+    expect(parseFlowClickTag(null)).toBeNull();
   });
 });

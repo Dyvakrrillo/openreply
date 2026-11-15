@@ -8,6 +8,12 @@ const { mockPrisma } = vi.hoisted(() => ({
     linkClick: {
       create: vi.fn(),
     },
+    flowLink: {
+      findUnique: vi.fn(),
+    },
+    flowEvent: {
+      create: vi.fn(),
+    },
   },
 }));
 
@@ -19,6 +25,8 @@ import { GET } from "../app/r/[slug]/route";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockPrisma.flowLink.findUnique.mockResolvedValue(null);
+  mockPrisma.flowEvent.create.mockResolvedValue({});
 });
 
 describe("tracked link redirect route", () => {
@@ -106,5 +114,46 @@ describe("tracked link redirect route", () => {
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toBe("https://manychat-alternative.com/");
     expect(mockPrisma.linkClick.create).not.toHaveBeenCalled();
+  });
+
+  it("credits a canvas card when a form link carries its tag", async () => {
+    mockPrisma.trackedLink.findUnique.mockResolvedValue({
+      id: "link_123",
+      workspaceId: "workspace_123",
+      automationId: "automation_123",
+      destinationUrl: "https://example.com/offer",
+      automation: { instagramAccountId: "instagram_account_123" },
+    });
+    mockPrisma.linkClick.create.mockResolvedValue({});
+
+    await GET(new Request("https://example.org/r/abc123?f=reveal~link_0") as never, {
+      params: Promise.resolve({ slug: "abc123" }),
+    });
+
+    expect(mockPrisma.linkClick.create).toHaveBeenCalled();
+    expect(mockPrisma.flowEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ automationId: "automation_123", stepId: "reveal", buttonId: "link_0", kind: "click" }),
+    });
+  });
+
+  it("follows a canvas link and logs the click on its card", async () => {
+    mockPrisma.trackedLink.findUnique.mockResolvedValue(null);
+    mockPrisma.flowLink.findUnique.mockResolvedValue({
+      workspaceId: "workspace_123",
+      automationId: "automation_123",
+      stepId: "step_9",
+      buttonId: "btn_9",
+      destinationUrl: "https://example.com/bonus",
+    });
+
+    const response = await GET(new Request("https://example.org/r/flowslug") as never, {
+      params: Promise.resolve({ slug: "flowslug" }),
+    });
+
+    expect(response.headers.get("location")).toBe("https://example.com/bonus");
+    expect(mockPrisma.linkClick.create).not.toHaveBeenCalled();
+    expect(mockPrisma.flowEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ stepId: "step_9", buttonId: "btn_9", kind: "click" }),
+    });
   });
 });

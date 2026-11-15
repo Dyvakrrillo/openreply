@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect } from "react";
 import { Handle, Position, useUpdateNodeInternals, type NodeProps, type Node } from "@xyflow/react";
 import { useI18n } from "@/lib/i18n/provider";
 import type { FlowStep } from "@/lib/flows/types";
+import { ctr, type FlowStepStats } from "@/lib/flows/stats";
 import type { I18n } from "@/lib/i18n";
 import { STEP_ACCENTS, STEP_TITLES, formatMinutes } from "./flow-meta";
 
@@ -20,6 +21,13 @@ export type TriggerSummary = {
 };
 
 export const TriggerSummaryContext = createContext<TriggerSummary | null>(null);
+/** Per-card numbers by step id; null hides the stats row. */
+export const FlowStatsContext = createContext<Record<string, FlowStepStats> | null>(null);
+
+function Rate({ value }: { value: number | null }) {
+  if (value === null) return null;
+  return <span className="ml-1.5 font-semibold text-sky-600">{value}%</span>;
+}
 
 const handleClass = "!h-3 !w-3 !border-2 !border-white !bg-zinc-400";
 
@@ -54,11 +62,13 @@ function Output({
   label,
   pill = false,
   tone = "default",
+  rate = null,
 }: {
   id: string;
   label: string;
   pill?: boolean;
   tone?: "default" | "yes" | "no" | "warn";
+  rate?: number | null;
 }) {
   const dot =
     tone === "yes"
@@ -78,6 +88,7 @@ function Output({
         }
       >
         {label}
+        <Rate value={rate} />
       </span>
       <Handle
         type="source"
@@ -98,6 +109,13 @@ export function StepNodeView({ id, data, selected }: NodeProps<StepNode>) {
   const { t } = useI18n();
   const { step, label } = data;
   const trigger = useContext(TriggerSummaryContext);
+  const allStats = useContext(FlowStatsContext);
+  const stats = allStats ? (allStats[step.id] ?? { sent: 0, clicked: 0, replied: 0, buttons: {} }) : null;
+  const buttonRate = (buttonId: string) => (stats ? ctr(stats.buttons[buttonId] ?? 0, stats.sent) : null);
+  const showsStats =
+    step.type === "message" || step.type === "followGate" || step.type === "askEmail" || step.type === "askFirstName";
+  const secondLabel = step.type === "askEmail" || step.type === "askFirstName" ? t("Replied") : t("Clicked");
+  const secondValue = stats ? (step.type === "askEmail" || step.type === "askFirstName" ? stats.replied : stats.clicked) : 0;
   const updateNodeInternals = useUpdateNodeInternals();
 
   // Handles move when buttons or optional outputs change; tell React Flow.
@@ -134,6 +152,19 @@ export function StepNodeView({ id, data, selected }: NodeProps<StepNode>) {
         </div>
       </div>
 
+      {stats && showsStats && (
+        <div className="mx-4 mt-3 grid grid-cols-2 text-center">
+          <div>
+            <p className="text-lg font-semibold leading-tight text-sky-600">{stats.sent}</p>
+            <p className="text-[11px] text-zinc-500">{t("Sent")}</p>
+          </div>
+          <div>
+            <p className="text-lg font-semibold leading-tight text-sky-600">{secondValue}</p>
+            <p className="text-[11px] text-zinc-500">{secondLabel}</p>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-2.5 px-4 pb-3.5 pt-3">
         {step.type === "trigger" && trigger && (
           <>
@@ -162,10 +193,11 @@ export function StepNodeView({ id, data, selected }: NodeProps<StepNode>) {
                 <div key={b.id} className="flex justify-end">
                   <span className="max-w-full truncate rounded-full border border-zinc-200 bg-white px-3 py-1 text-[13px] font-medium text-sky-600 shadow-sm">
                     🔗 {b.label || t("Link")}
+                    <Rate value={buttonRate(b.id)} />
                   </span>
                 </div>
               ) : (
-                <Output key={b.id} id={`button:${b.id}`} label={b.label || t("Button")} pill />
+                <Output key={b.id} id={`button:${b.id}`} label={b.label || t("Button")} pill rate={buttonRate(b.id)} />
               )
             )}
             {step.noClickMinutes && step.buttons.some((b) => b.kind === "link") ? (
@@ -184,6 +216,7 @@ export function StepNodeView({ id, data, selected }: NodeProps<StepNode>) {
             <div className="flex justify-end">
               <span className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[13px] font-medium text-zinc-800 shadow-sm">
                 {step.buttonLabel}
+                <Rate value={buttonRate("follow")} />
               </span>
             </div>
             <Chip icon="✅">{t("Checks they follow you")}</Chip>

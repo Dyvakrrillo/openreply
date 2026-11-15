@@ -4,6 +4,7 @@ import { TRACKED_LINK_ORDER } from "@/lib/tracking/link-order";
 import { campaignToFlow } from "@/lib/flows/from-campaign";
 import { flowSchema, parseFlow } from "@/lib/flows/schema";
 import { validateFlow } from "@/lib/flows/types";
+import { syncFlowLinks } from "@/lib/flows/links";
 import { canManageWorkspace, getCurrentWorkspaceContext } from "@/lib/workspace-access";
 
 export const dynamic = "force-dynamic";
@@ -106,9 +107,11 @@ export async function PUT(request: NextRequest) {
     if (body.flowEnabled) {
       const saved = campaign.flow ? parseFlow(campaign.flow) : null;
       const problems = saved ? validateFlow(saved) : ["Save the canvas before switching it on."];
-      if (problems.length > 0) {
+      if (!saved || problems.length > 0) {
         return NextResponse.json({ success: false, error: problems[0], problems }, { status: 400 });
       }
+      // Canvases saved before link tracking get their links now.
+      await syncFlowLinks({ workspaceId: context.workspaceId, automationId: id, flow: saved });
     }
     await prisma.automation.updateMany({
       where: { id, workspaceId: context.workspaceId },
@@ -133,5 +136,6 @@ export async function PUT(request: NextRequest) {
   if (updated.count === 0) {
     return NextResponse.json({ success: false, error: "Campaign not found" }, { status: 404 });
   }
+  await syncFlowLinks({ workspaceId: context.workspaceId, automationId: id, flow: parsed.data });
   return NextResponse.json({ success: true });
 }

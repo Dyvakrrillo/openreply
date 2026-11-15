@@ -707,5 +707,7 @@
   "Live: this campaign sends what the canvas shows. Saved changes apply right away.": "已上線：此活動依照畫布內容傳送。儲存的變更會立即生效。",
   "After a comment, Instagram allows a single message until the person taps or replies. Add a button to the first message so the next steps can follow.": "留言之後，在對方點擊或回覆前，Instagram 只允許傳送一則訊息。請在第一則訊息加上按鈕，後續步驟才能接著傳送。",
   "This campaign runs on its steps: its messages are edited in the steps canvas. The trigger (posts, keywords, public reply) is still set here.": "此活動使用步驟模式：訊息請在步驟畫布中編輯。觸發條件（貼文、關鍵字、公開回覆）仍在這裡設定。",
-  "Open the canvas": "開啟畫布"
+  "Open the canvas": "開啟畫布",
+  "Replied": "已回覆",
+  "Clicked": "已點擊"
 }

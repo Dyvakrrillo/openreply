@@ -36,6 +36,7 @@ import {
 } from "@/lib/email-capture";
 import { findCapturedEmail, syncCaptureToCrm, type EmailGateAutomation } from "@/lib/queue/email-gate";
 import { parseFlow } from "./schema";
+import { flowClickTag } from "./links";
 import type { AskEmailStep, Flow, FlowStep, MessageStep } from "./types";
 
 export type FlowAutomation = {
@@ -73,6 +74,8 @@ type Env = {
   /** Whether direct messages can be sent (false right after a comment). */
   windowOpen: boolean;
   sentAny: boolean;
+  /** Canvas link buttons' own tracked slugs, by button id (loaded once). */
+  flowLinks?: Map<string, string>;
 };
 
 const MAX_STEPS_PER_ADVANCE = 30;
@@ -99,17 +102,37 @@ function postback(automationId: string, stepId: string, action: string) {
   return `flow:${automationId}:${stepId}:${action}`;
 }
 
-/** Link buttons go through the campaign's tracked link when the URL matches one. */
-function linkUrl(env: Env, url: string) {
-  const tracked = env.automation.trackedLinks.find((l) => l.destinationUrl === url.trim());
-  return tracked ? buildTrackedUrl(tracked.slug, undefined, hashRecipientId(env.userId)) : url.trim();
+/**
+ * A link button's URL: the campaign's tracked link when the URL is one of its
+ * form links, else the button's own FlowLink. Both carry the recipient token
+ * and the step/button tag so the click is credited to this card.
+ */
+async function linkUrl(env: Env, stepId: string, buttonId: string, url: string) {
+  const tracked = env.automation.trackedLinks.find((l) => l.destinationUrl.trim() === url.trim());
+  let slug = tracked?.slug;
+  if (!slug) {
+    if (!env.flowLinks) {
+      const rows = await prisma.flowLink.findMany({
+        where: { automationId: env.automation.id },
+        select: { buttonId: true, slug: true },
+      });
+      env.flowLinks = new Map(rows.map((r) => [r.buttonId, r.slug]));
+    }
+    slug = env.flowLinks.get(buttonId);
+  }
+  // A canvas saved before link tracking: send the plain URL.
+  if (!slug) return url.trim();
+  const base = buildTrackedUrl(slug, undefined, hashRecipientId(env.userId));
+  return `${base}&f=${encodeURIComponent(flowClickTag(stepId, buttonId))}`;
 }
 
-function messageButtons(env: Env, step: MessageStep): FlowSendButton[] {
-  return step.buttons.map((b) =>
-    b.kind === "link"
-      ? { type: "url", title: b.label, url: linkUrl(env, b.url) }
-      : { type: "postback", title: b.label, payload: postback(env.automation.id, step.id, b.id) }
+async function messageButtons(env: Env, step: MessageStep): Promise<FlowSendButton[]> {
+  return Promise.all(
+    step.buttons.map(async (b): Promise<FlowSendButton> =>
+      b.kind === "link"
+        ? { type: "url", title: b.label, url: await linkUrl(env, step.id, b.id, b.url) }
+        : { type: "postback", title: b.label, payload: postback(env.automation.id, step.id, b.id) }
+    )
   );
 }
 
@@ -234,11 +257,18 @@ async function saveEmail(env: Env, step: AskEmailStep, email: string) {
 
 async function evaluate(env: Env, check: string): Promise<boolean> {
   if (check === "clicked") {
+    // Any of the campaign's links: form links (LinkClick) or canvas links.
+    const recipientHash = hashRecipientId(env.userId);
     const click = await prisma.linkClick.findFirst({
-      where: { automationId: env.automation.id, recipientHash: hashRecipientId(env.userId) },
+      where: { automationId: env.automation.id, recipientHash },
       select: { id: true },
     });
-    return Boolean(click);
+    if (click) return true;
+    const flowClick = await prisma.flowEvent.findFirst({
+      where: { automationId: env.automation.id, kind: "click", recipientHash },
+      select: { id: true },
+    });
+    return Boolean(flowClick);
   }
   if (check === "follows") {
     return (await getUserFollowStatus({ context: env.context, recipientId: env.userId })) === true;
@@ -273,7 +303,7 @@ async function advance(env: Env, startId: string | undefined, skipDelayFor?: str
           await schedule(env, { kind: "resume", stepId: step.id, seq, skipDelay: true }, step.delaySeconds * 1000);
           return;
         }
-        await send(env, step.id, render(step.text, env), messageButtons(env, step));
+        await send(env, step.id, render(step.text, env), await messageButtons(env, step));
         if (step.noClickMinutes && step.noClickNext && step.buttons.some((b) => b.kind === "link")) {
           await schedule(env, { kind: "noClick", stepId: step.id }, step.noClickMinutes * 60_000);
         }

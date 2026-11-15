@@ -609,9 +609,31 @@ model FlowEvent {
   // "sent" | "button" (with buttonId) | "reply" | "failed"
   kind         String
   buttonId     String?
-  igUserId     String
+  // Set for sends and taps. A link click only knows the recipient token.
+  igUserId     String?
+  // hashRecipientId(igUserId); set on clicks (from the link's `?r=`).
+  recipientHash String?
   createdAt    DateTime @default(now())
 
   @@index([automationId, stepId])
+  @@index([automationId, kind, recipientHash])
+  @@index([workspaceId])
+}
+
+// Tracked redirect for a link button drawn on the canvas whose URL is not one
+// of the campaign's form links. Served by /r/[slug] like TrackedLink; clicks
+// are logged as FlowEvent "click" rather than LinkClick.
+model FlowLink {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  automationId   String
+  stepId         String
+  buttonId       String
+  slug           String   @unique
+  destinationUrl String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([automationId, buttonId])
   @@index([workspaceId])
 }

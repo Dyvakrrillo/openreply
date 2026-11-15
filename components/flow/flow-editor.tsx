@@ -31,7 +31,8 @@ import {
   type FlowStepType,
 } from "@/lib/flows/types";
 import { ADDABLE_STEPS, STEP_TITLES, createStep } from "./flow-meta";
-import { nodeTypes, stepLabel, TriggerSummaryContext, type StepNode, type TriggerSummary } from "./flow-nodes";
+import { FlowStatsContext, nodeTypes, stepLabel, TriggerSummaryContext, type StepNode, type TriggerSummary } from "./flow-nodes";
+import type { FlowStepStats } from "@/lib/flows/stats";
 import FlowInspector from "./flow-inspector";
 import FlowPreview from "./flow-preview";
 
@@ -78,7 +79,8 @@ function Editor({ data, onSaved }: { data: Loaded; onSaved: (savedAt: string) =>
     // left to right; the rest is a scroll or a zoom-out away.
     const firstSteps = [...flow.steps]
       .sort((a, b) => a.position.x - b.position.x || a.position.y - b.position.y)
-      .slice(0, 4)
+      // Fewer cards on a phone, so the first ones stay readable.
+      .slice(0, (document.querySelector(".react-flow")?.clientWidth ?? 1000) < 640 ? 2 : 4)
       .map((s) => ({ id: s.id }));
     requestAnimationFrame(() => fitView({ nodes: firstSteps, padding: 0.12, maxZoom: 1 }));
     // Runs once, on the steps as first loaded.
@@ -95,6 +97,7 @@ function Editor({ data, onSaved }: { data: Loaded; onSaved: (savedAt: string) =>
   const [message, setMessage] = useState<{ tone: "error" | "ok"; text: string } | null>(null);
   const [menu, setMenu] = useState<AddMenu | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [stats, setStats] = useState<Record<string, FlowStepStats> | null>(null);
 
   const { campaign } = data;
 
@@ -110,6 +113,23 @@ function Editor({ data, onSaved }: { data: Loaded; onSaved: (savedAt: string) =>
       cancelled = true;
     };
   }, [campaign.instagramAccountId]);
+
+  // Per-card numbers. Shown once the campaign has run on its steps (or ever
+  // did); a canvas that never ran would only show zeros.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/automations/flow/stats?id=${campaign.id}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled || !d.success) return;
+        const steps = d.data.steps as Record<string, FlowStepStats>;
+        setStats(Object.keys(steps).length > 0 || data.flowEnabled ? steps : null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [campaign.id, data.flowEnabled]);
 
   // Warn before leaving with unsaved changes.
   useEffect(() => {
@@ -377,19 +397,19 @@ function Editor({ data, onSaved }: { data: Loaded; onSaved: (savedAt: string) =>
             {campaign.name} <span className="font-normal text-muted">· {t("Steps")}</span>
           </h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {message && (
             <span className={`text-sm ${message.tone === "error" ? "text-error" : "text-success"}`}>{message.text}</span>
           )}
           {!derived && (
-            <button onClick={resetFromForm} className="rounded-lg border border-border px-3 py-2 text-sm text-muted hover:text-foreground">
+            <button onClick={resetFromForm} className="whitespace-nowrap rounded-lg border border-border px-2.5 py-2 text-xs text-muted hover:text-foreground sm:px-3 sm:text-sm">
               {t("Redraw from settings")}
             </button>
           )}
           <button
             onClick={toggleEngine}
             disabled={switching}
-            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm disabled:opacity-50 ${
+            className={`flex items-center gap-2 whitespace-nowrap rounded-lg border px-2.5 py-2 text-xs disabled:opacity-50 sm:px-3 sm:text-sm ${
               enabled ? "border-success/40 bg-success/10 text-success" : "border-border text-muted hover:text-foreground"
             }`}
           >
@@ -399,7 +419,7 @@ function Editor({ data, onSaved }: { data: Loaded; onSaved: (savedAt: string) =>
           <button
             onClick={save}
             disabled={saving || (!dirty && !derived)}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+            className="whitespace-nowrap rounded-lg bg-accent px-3 py-2 text-xs font-medium text-white hover:bg-accent-hover disabled:opacity-50 sm:px-4 sm:text-sm"
           >
             {saving ? t("Saving…") : t("Save")}
           </button>
@@ -424,7 +444,8 @@ function Editor({ data, onSaved }: { data: Loaded; onSaved: (savedAt: string) =>
       )}
 
       <div className="flex flex-col gap-4 lg:flex-row">
-        <div className="relative h-[70vh] min-h-[520px] w-full lg:min-w-0 lg:flex-1 overflow-hidden rounded-xl border border-border bg-slate-50 lg:h-[calc(100vh-14rem)]">
+        <div className="relative h-[62vh] min-h-[460px] w-full lg:min-w-0 lg:flex-1 overflow-hidden rounded-xl border border-border bg-slate-50 lg:h-[calc(100vh-14rem)]">
+          <FlowStatsContext.Provider value={stats}>
           <TriggerSummaryContext.Provider value={trigger}>
             <ReactFlow
               nodes={nodes}
@@ -448,6 +469,7 @@ function Editor({ data, onSaved }: { data: Loaded; onSaved: (savedAt: string) =>
               <MiniMap pannable zoomable position="bottom-right" className="!hidden md:!block" />
             </ReactFlow>
           </TriggerSummaryContext.Provider>
+          </FlowStatsContext.Provider>
 
           <button
             onClick={openAddMenuFromToolbar}

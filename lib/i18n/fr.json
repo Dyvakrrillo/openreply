@@ -707,5 +707,7 @@
   "Live: this campaign sends what the canvas shows. Saved changes apply right away.": "En ligne : cette campagne envoie ce que montre le canevas. Les modifications enregistrées s'appliquent tout de suite.",
   "After a comment, Instagram allows a single message until the person taps or replies. Add a button to the first message so the next steps can follow.": "Après un commentaire, Instagram n'autorise qu'un seul message tant que la personne n'a pas cliqué ou répondu. Ajoute un bouton au premier message pour que la suite puisse partir.",
   "This campaign runs on its steps: its messages are edited in the steps canvas. The trigger (posts, keywords, public reply) is still set here.": "Cette campagne fonctionne en mode étapes : ses messages se modifient dans le canevas. Le déclencheur (publications, mots-clés, réponse publique) se règle toujours ici.",
-  "Open the canvas": "Ouvrir le canevas"
+  "Open the canvas": "Ouvrir le canevas",
+  "Replied": "Réponses",
+  "Clicked": "Cliqués"
 }

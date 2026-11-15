@@ -707,5 +707,7 @@
   "Live: this campaign sends what the canvas shows. Saved changes apply right away.": "Активно: кампания отправляет то, что на холсте. Сохранённые изменения применяются сразу.",
   "After a comment, Instagram allows a single message until the person taps or replies. Add a button to the first message so the next steps can follow.": "После комментария Instagram разрешает одно сообщение, пока человек не нажмёт кнопку или не ответит. Добавь кнопку в первое сообщение, чтобы следующие шаги сработали.",
   "This campaign runs on its steps: its messages are edited in the steps canvas. The trigger (posts, keywords, public reply) is still set here.": "Эта кампания работает по шагам: сообщения редактируются на холсте. Триггер (публикации, ключевые слова, публичный ответ) по-прежнему настраивается здесь.",
-  "Open the canvas": "Открыть холст"
+  "Open the canvas": "Открыть холст",
+  "Replied": "Ответили",
+  "Clicked": "Кликнули"
 }
